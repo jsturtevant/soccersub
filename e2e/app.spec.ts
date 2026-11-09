@@ -56,41 +56,65 @@ async function seed(page: Page, active = false) {
   }, state);
 }
 
-for (const name of ['', '   ']) {
-  test(`saves a generated plan with a ${name ? 'whitespace' : 'blank'} name`, async ({
-    page,
-  }) => {
-    await seed(page);
-    await page.goto('/');
-    await page.getByRole('button', { name: /Riverside U12/ }).click();
-    await page.getByRole('button', { name: 'New plan', exact: true }).click();
+test('saves generated lineups with the prefilled plan name', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await expect(page.getByLabel('Plan name')).toHaveValue('Saturday rotation');
+  await page.getByLabel('Total game minutes').fill('2');
+  await page.getByLabel('Rotation every').fill('0.5');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  await page
+    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
+    .selectOption('p1');
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Saturday rotation', exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Saturday rotation', exact: true }),
+  ).toBeVisible();
+  const state = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('soccersub.v1')!),
+  );
+  expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe('p1');
+});
+
+test('explains why a generated plan cannot be saved after clearing its name', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  for (const name of ['', '   ']) {
     await page.getByLabel('Plan name').fill(name);
-    await page.getByLabel('Total game minutes').fill('2');
-    await page.getByLabel('Rotation every').fill('0.5');
-    await page
-      .getByRole('button', { name: 'Generate lineups', exact: true })
-      .click();
-    await page
-      .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
-      .selectOption('p1');
     await expect(
       page.getByRole('button', { name: 'Save plan', exact: true }),
-    ).toBeEnabled();
-    await page.getByRole('button', { name: 'Save plan', exact: true }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Game plan', exact: true }),
-    ).toBeVisible();
-    await page.reload();
-    await page.getByRole('button', { name: /Riverside U12/ }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Game plan', exact: true }),
-    ).toBeVisible();
-    const state = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem('soccersub.v1')!),
+    ).toBeDisabled();
+    await expect(page.getByRole('status')).toHaveText(
+      'Enter a plan name before saving.',
     );
-    expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe('p1');
+  }
+  await page.getByLabel('Plan name').fill('Sunday rotation');
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  const plan = page.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'Sunday rotation' }),
   });
-}
+  await plan.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('Plan name')).toHaveValue('Sunday rotation');
+});
 
 test('keeps a failed player edit open and reports the storage error', async ({
   page,
