@@ -210,6 +210,23 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('keeps the current goalkeeper when cancelling a pending goalkeeper change', () => {
+    const original = run();
+    original.interval = 300;
+    original.blocks = boundaries(2400, 300).map((at) => ({
+      at,
+      lineup: [...original.lineup],
+    }));
+    const planned = editNextBlock(original, 1, original.blocks[1].lineup, [
+      'player-10',
+      ...original.lineup.slice(1),
+    ]);
+    const due = advance(toggleClock(planned, 1000), 351000);
+    const kept = acknowledge(due, due.lineup);
+    expect(kept.blocks[2].lineup[0]).toBe('player-0');
+    expect(kept.blocks[3].lineup[0]).toBe('player-0');
+    expect(kept.blocks[4].lineup).toEqual(original.blocks[4].lineup);
+  });
   it('cancels a pending substitution without changing the actual events', () => {
     const due = advance(toggleClock(run(), 1000), 951000);
     const next = editNextBlock(due, 1, due.blocks[1].lineup, due.lineup);
