@@ -175,6 +175,26 @@ test('keeps actual-lineup correction closed until needed and saves edits', async
   expect(state.active.lineup[0]).toBe('p11');
 });
 
+test('offers only the current player and bench players in every editable field slot', async ({
+  page,
+}) => {
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const correction = page.locator('details').filter({
+    has: page.getByText('Adjust actual lineup', { exact: true }),
+  });
+  await correction.getByText('Adjust actual lineup', { exact: true }).click();
+  const options = await correction.locator('select').evaluateAll((selects) =>
+    selects.map((select) => ({
+      current: select.value,
+      options: [...select.options].map((option) => option.value),
+    })),
+  );
+  for (const slot of options)
+    expect(slot.options).toEqual([slot.current, 'p9', 'p10', 'p11']);
+});
+
 test('refreshes untouched correction and protects edits when the live lineup changes', async ({
   page,
 }) => {
