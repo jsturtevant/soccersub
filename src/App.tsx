@@ -1062,15 +1062,18 @@ export default function App() {
                     acknowledge(advance(run, Date.now()), lineup),
                   )
                 }
-                editNext={(index, base, lineup) =>
-                  mutateRun((run) =>
-                    editNextBlock(
-                      advance(run, Date.now()),
-                      index,
-                      base,
-                      lineup,
-                    ),
-                  )
+                editNext={(index, base, lineup, from) =>
+                  mutateRun((run) => {
+                    const next = advance(run, Date.now());
+                    if (
+                      from.length !== next.lineup.length ||
+                      from.some((id, slot) => id !== next.lineup[slot])
+                    )
+                      throw new Error(
+                        'The live lineup changed. Review the next planned block again.',
+                      );
+                    return editNextBlock(next, index, base, lineup);
+                  })
                 }
                 discard={discard}
                 complete={(scoreFor, scoreAgainst, notes) =>

@@ -55,6 +55,32 @@ export function nextBlockIndex(run: Run): number {
   );
 }
 
+export function nextSubstitutionIndex(run: Run): number {
+  const first = nextBlockIndex(run);
+  if (first < 0 || run.pendingBlock !== null) return first;
+  for (let index = first; index < run.blocks.length; index++) {
+    const block = run.blocks[index];
+    if (
+      block.at === run.duration / 2 ||
+      changes(run.lineup, block.lineup).on.length > 0
+    )
+      return index;
+  }
+  return first;
+}
+
+export function recentArrivals(run: Run): string[] {
+  for (let index = run.events.length - 1; index > 0; index--) {
+    const incoming = changes(
+      run.events[index - 1].lineup,
+      run.events[index].lineup,
+    ).on;
+    if (incoming.length > 0)
+      return incoming.filter((id) => run.lineup.includes(id));
+  }
+  return [];
+}
+
 export function editNextBlock(
   run: Run,
   index: number,
@@ -62,7 +88,7 @@ export function editNextBlock(
   lineup: string[],
 ): Run {
   if (
-    index !== nextBlockIndex(run) ||
+    (index !== nextBlockIndex(run) && index !== nextSubstitutionIndex(run)) ||
     index <= run.appliedBlock ||
     base.some((id, slot) => id !== run.blocks[index]?.lineup[slot]) ||
     base.length !== run.blocks[index]?.lineup.length
@@ -90,6 +116,37 @@ export function substitutions(from: string[], to: string[]) {
     while (from.includes(on)) on = to[from.indexOf(on)];
     return { off, on };
   });
+}
+
+export function substitutionLineup(
+  from: string[],
+  planned: string[],
+  pairs: ReturnType<typeof substitutions>,
+): string[] {
+  if (new Set(pairs.map((pair) => pair.off)).size !== pairs.length)
+    throw new Error(
+      'Each outgoing player can appear in only one substitution.',
+    );
+  const lineup = [...from];
+  const keeperSlot = from.indexOf(planned[0]);
+  // Preserve the planned goalkeeper swap, but anchor retained outfield players.
+  if (
+    keeperSlot > 0 &&
+    !pairs.some((pair) => pair.off === planned[0] && pair.off !== pair.on)
+  )
+    [lineup[0], lineup[keeperSlot]] = [lineup[keeperSlot], lineup[0]];
+  for (const { off, on } of pairs) {
+    if (!from.includes(off) || (on !== off && from.includes(on)))
+      throw new Error(
+        'Choose a field player and a bench player, or keep the outgoing player on.',
+      );
+    if (off === on) continue;
+    const slot = lineup.indexOf(off);
+    if (slot < 0 || lineup.includes(on))
+      throw new Error('Each substitution must use different players.');
+    lineup[slot] = on;
+  }
+  return lineup;
 }
 
 function record(

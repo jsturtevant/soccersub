@@ -705,6 +705,15 @@ legend {
   color: #5b390b;
   background: #ffedb3;
 }
+.player-name.recently-on {
+  background: #dcefdc;
+  color: #24522d;
+}
+.recent-label {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 800;
+}
 .incoming-label {
   font-size: 0.65rem;
   font-weight: 800;
@@ -831,6 +840,14 @@ details summary {
   font-size: 1.25rem;
   font-weight: 800;
   color: var(--green);
+}
+.sub-pair select {
+  min-width: 0;
+  font-size: 0.9rem;
+  padding: 10px 6px;
+}
+.sub-pair label .sub-label {
+  align-self: flex-start;
 }
 .next-change p {
   margin: 8px 0 0;

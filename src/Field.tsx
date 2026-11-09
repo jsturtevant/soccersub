@@ -6,6 +6,7 @@ type Props = {
   lineup: string[];
   players: Player[];
   nextLineup?: string[];
+  recentlyOn?: string[];
   label?: string;
   onChange?: (slot: number, player: string) => void;
 };
@@ -15,6 +16,7 @@ export function Field({
   lineup,
   players,
   nextLineup,
+  recentlyOn = [],
   label = 'Soccer field',
   onChange,
 }: Props) {
@@ -64,8 +66,13 @@ export function Field({
                       ))}
                   </select>
                 ) : (
-                  <span className="player-name">
-                    {player?.name ?? 'Unassigned'}
+                  <span
+                    className={`player-name${recentlyOn.includes(lineup[slot]) ? ' recently-on' : ''}`}
+                  >
+                    <span>{player?.name ?? 'Unassigned'}</span>
+                    {recentlyOn.includes(lineup[slot]) && (
+                      <span className="recent-label">Just on</span>
+                    )}
                   </span>
                 )}
                 {incoming && (
