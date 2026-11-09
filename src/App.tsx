@@ -174,7 +174,7 @@ function TeamPage({
           <p>This team is archived.</p>
           <button
             className="secondary"
-            onClick={() => update({ ...team, archived: false })}
+            onClick={() => attempt(() => update({ ...team, archived: false }))}
           >
             Restore team
           </button>
@@ -219,19 +219,22 @@ function TeamPage({
               </button>
               <button
                 className="text-button danger"
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Delete "${template.name}"? Completed games will be kept.`,
-                    )
-                  )
-                    update({
-                      ...team,
-                      templates: team.templates.filter(
-                        (item) => item.id !== template.id,
-                      ),
-                    });
-                }}
+                onClick={() =>
+                  attempt(() => {
+                    if (
+                      confirm(
+                        `Delete "${template.name}"? Completed games will be kept.`,
+                      )
+                    ) {
+                      update({
+                        ...team,
+                        templates: team.templates.filter(
+                          (item) => item.id !== template.id,
+                        ),
+                      });
+                    }
+                  })
+                }
               >
                 Delete
               </button>
@@ -320,12 +323,15 @@ function TeamPage({
       {!team.archived && (
         <button
           className="text-button danger"
-          onClick={() => {
-            if (
-              confirm(`Archive ${team.name}? Plans and history will be kept.`)
-            )
-              update({ ...team, archived: true });
-          }}
+          onClick={() =>
+            attempt(() => {
+              if (
+                confirm(`Archive ${team.name}? Plans and history will be kept.`)
+              ) {
+                update({ ...team, archived: true });
+              }
+            })
+          }
         >
           Archive team
         </button>
@@ -664,14 +670,10 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
   const updateTeam = (next: Team) =>
-    attempt(() =>
-      commit((previous) => ({
-        ...previous,
-        teams: previous.teams.map((item) =>
-          item.id === next.id ? next : item,
-        ),
-      })),
-    );
+    commit((previous) => ({
+      ...previous,
+      teams: previous.teams.map((item) => (item.id === next.id ? next : item)),
+    }));
   const mutateRun = (
     action: (
       run: NonNullable<AppState['active']>,
