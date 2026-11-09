@@ -18,6 +18,8 @@ import {
   createRun,
   editNextBlock,
   estimatedSeconds,
+  nextBlockIndex,
+  nextSubstitutionIndex,
   startSecondHalf,
   substitutions,
   toggleClock,
@@ -211,6 +213,20 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('allows editing the next visible substitution past unchanged blocks without skipping schedule accounting', () => {
+    const original = run();
+    original.blocks[1].lineup = [...original.lineup];
+    expect(nextBlockIndex(original)).toBe(1);
+    expect(nextSubstitutionIndex(original)).toBe(2);
+    const next = editNextBlock(original, 2, original.blocks[2].lineup, [
+      'player-10',
+      ...original.blocks[2].lineup.slice(1),
+    ]);
+    expect(next.blocks[1]).toEqual(original.blocks[1]);
+    expect(next.lineup).toEqual(original.lineup);
+    expect(next.events).toEqual(original.events);
+    expect(next.blocks[3].lineup[0]).toBe('player-10');
+  });
   it('estimates final minutes from actual play and an overdue pending lineup', () => {
     const due = advance(toggleClock(run(), 1000), 951000);
     const totals = estimatedSeconds(due);

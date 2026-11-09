@@ -705,6 +705,15 @@ legend {
   color: #5b390b;
   background: #ffedb3;
 }
+.player-name.recently-on {
+  background: #dcefdc;
+  color: #24522d;
+}
+.recent-label {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 800;
+}
 .incoming-label {
   font-size: 0.65rem;
   font-weight: 800;

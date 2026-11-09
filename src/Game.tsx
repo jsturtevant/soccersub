@@ -3,7 +3,8 @@ import { formatTime, type Match, type Run } from './domain';
 import {
   actualSeconds,
   estimatedSeconds,
-  nextBlockIndex,
+  nextSubstitutionIndex,
+  recentArrivals,
   substitutions,
 } from './engine';
 import { Field, swapPlayer } from './Field';
@@ -220,7 +221,7 @@ export function Game({
     : [];
   const halftimeTarget =
     run.blocks.find((block) => block.at === half)?.lineup ?? run.lineup;
-  const nextIndex = nextBlockIndex(run);
+  const nextIndex = nextSubstitutionIndex(run);
   const nextBlock = run.blocks[nextIndex];
   const staleNextDraft =
     nextDraft !== null &&
@@ -433,6 +434,7 @@ export function Game({
         lineup={run.lineup}
         players={run.players}
         label="Live lineup"
+        recentlyOn={recentArrivals(run)}
         nextLineup={
           !recovered && run.clock.phase !== 'fulltime'
             ? nextBlock?.lineup

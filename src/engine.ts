@@ -55,6 +55,32 @@ export function nextBlockIndex(run: Run): number {
   );
 }
 
+export function nextSubstitutionIndex(run: Run): number {
+  const first = nextBlockIndex(run);
+  if (first < 0 || run.pendingBlock !== null) return first;
+  for (let index = first; index < run.blocks.length; index++) {
+    const block = run.blocks[index];
+    if (
+      block.at === run.duration / 2 ||
+      changes(run.lineup, block.lineup).on.length > 0
+    )
+      return index;
+  }
+  return first;
+}
+
+export function recentArrivals(run: Run): string[] {
+  for (let index = run.events.length - 1; index > 0; index--) {
+    const incoming = changes(
+      run.events[index - 1].lineup,
+      run.events[index].lineup,
+    ).on;
+    if (incoming.length > 0)
+      return incoming.filter((id) => run.lineup.includes(id));
+  }
+  return [];
+}
+
 export function editNextBlock(
   run: Run,
   index: number,
@@ -62,7 +88,7 @@ export function editNextBlock(
   lineup: string[],
 ): Run {
   if (
-    index !== nextBlockIndex(run) ||
+    (index !== nextBlockIndex(run) && index !== nextSubstitutionIndex(run)) ||
     index <= run.appliedBlock ||
     base.some((id, slot) => id !== run.blocks[index]?.lineup[slot]) ||
     base.length !== run.blocks[index]?.lineup.length
