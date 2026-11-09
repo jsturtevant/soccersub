@@ -3,6 +3,11 @@
 install:
     npm ci
 
+# Install browser engines and their system dependencies for CI.
+[working-directory: '..']
+browser-install:
+    npx playwright install --with-deps chromium webkit
+
 # Run unit tests, lint, and formatting checks.
 [working-directory: '..']
 check:
@@ -17,5 +22,5 @@ build:
 
 # Run browser tests against the production app.
 [working-directory: '..']
-e2e:
+e2e: build
     npm run test:e2e

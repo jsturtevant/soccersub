@@ -16,5 +16,6 @@ jobs:
           cache: npm
       - uses: extractions/setup-just@v3
       - run: just web install
+      - run: just web browser-install
       - run: just test
       - run: just build
