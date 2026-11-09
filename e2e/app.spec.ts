@@ -906,3 +906,50 @@ test('edits both sides of the upcoming grid without a separate field or moving r
     ),
   ).toBe(true);
 });
+
+for (const change of [
+  {
+    name: 'cancelling',
+    side: 'On player 1',
+    player: 'p1',
+    replacement: 'p1',
+    slot: 1,
+  },
+  {
+    name: 'changing off within a chain',
+    side: 'Off player 1',
+    player: 'p2',
+    replacement: 'p9',
+    slot: 2,
+  },
+  {
+    name: 'changing off outside a chain',
+    side: 'Off player 1',
+    player: 'p3',
+    replacement: 'p9',
+    slot: 3,
+  },
+]) {
+  test(`keeps retained positions when ${change.name} a legacy substitution`, async ({
+    page,
+  }) => {
+    const original = previewRun();
+    await seed(page, original);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Resume saved game' }).click();
+    await page.getByRole('button', { name: 'Edit next substitutions' }).click();
+    await page
+      .getByLabel(change.side, { exact: true })
+      .selectOption(change.player);
+    await page.getByRole('button', { name: 'Save next substitutions' }).click();
+    const saved = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+    );
+    const expected = [...original.lineup];
+    expected[6] = 'p10';
+    expected[change.slot] = change.replacement;
+    expect(saved.blocks[1].lineup).toEqual(expected);
+    expect(saved.lineup).toEqual(original.lineup);
+    expect(saved.events).toEqual(original.events);
+  });
+}
