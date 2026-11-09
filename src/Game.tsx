@@ -11,6 +11,7 @@ import {
   estimatedSeconds,
   nextSubstitutionIndex,
   recentArrivals,
+  substitutionLineup,
   substitutions,
 } from './engine';
 import { Field, swapPlayer } from './Field';
@@ -328,9 +329,7 @@ export function Game({
           'The next block changed. Review the next planned block again.',
         );
       const pair = nextDraft.pairs[index];
-      const lineup = [...nextDraft.lineup];
-      const incomingSlot = pair ? lineup.indexOf(pair.on) : -1;
-      if (!pair || incomingSlot < 0)
+      if (!pair)
         throw new Error(
           'The substitution changed. Review the next planned block again.',
         );
@@ -339,12 +338,11 @@ export function Game({
         if (
           id !== pair.off &&
           id !== pair.on &&
-          (nextDraft.from.includes(id) || lineup.includes(id))
+          (nextDraft.from.includes(id) || nextDraft.lineup.includes(id))
         )
           throw new Error(
             'Choose a bench player, or keep the outgoing player on.',
           );
-        lineup[incomingSlot] = id;
         updated.on = id;
       } else {
         if (
@@ -359,29 +357,28 @@ export function Game({
         if (pair.off === pair.on) {
           updated = { off: id, on: id };
         } else {
-          lineup[incomingSlot] = pair.off;
-          const outgoingSlot = lineup.indexOf(id);
-          if (outgoingSlot < 0)
+          if (!nextDraft.lineup.includes(id) && id !== pair.off)
             throw new Error('Choose a player who is staying on the field.');
-          lineup[outgoingSlot] = pair.on;
           updated.off = id;
         }
       }
+      const pairs = nextDraft.pairs.map((pair, row) =>
+        row === index ? updated : pair,
+      );
+      const lineup = substitutionLineup(nextDraft.from, nextDraft.base, pairs);
       validateLineup(lineup, run.players, run.formationId);
       setNextDraft({
         ...nextDraft,
         lineup,
-        pairs: nextDraft.pairs.map((pair, row) =>
-          row === index ? updated : pair,
-        ),
+        pairs,
       });
     });
-  const addOff = nextDraft?.from
+  const addOff = nextDraft?.lineup
     .slice(1)
-    .concat(nextDraft.from[0])
+    .concat(nextDraft.lineup[0])
     .find(
       (id) =>
-        nextDraft.lineup.includes(id) &&
+        nextDraft.from.includes(id) &&
         !nextDraft.pairs.some((pair) => pair.off === id),
     );
   const addOn =
@@ -659,10 +656,10 @@ export function Game({
                         );
                       setNextDraft({
                         ...nextDraft,
-                        lineup: swapPlayer(
-                          nextDraft.lineup,
-                          nextDraft.lineup.indexOf(addOff),
-                          addOn.id,
+                        lineup: substitutionLineup(
+                          nextDraft.from,
+                          nextDraft.base,
+                          [...nextDraft.pairs, { off: addOff, on: addOn.id }],
                         ),
                         pairs: [
                           ...nextDraft.pairs,

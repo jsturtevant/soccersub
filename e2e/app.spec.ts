@@ -953,3 +953,63 @@ for (const change of [
     expect(saved.events).toEqual(original.events);
   });
 }
+
+test('protects inline edits when an actual correction changes the live lineup', async ({
+  page,
+}) => {
+  await seed(page, true);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await page.getByRole('button', { name: 'Edit next substitutions' }).click();
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p11');
+  const correction = page
+    .locator('details')
+    .filter({ has: page.getByText('Adjust actual lineup', { exact: true }) });
+  await correction.locator('summary').click();
+  await correction
+    .getByLabel('Player in field slot 3', { exact: true })
+    .selectOption('p10');
+  await correction.getByRole('button', { name: 'Apply actual lineup' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Save next substitutions' }),
+  ).toBeDisabled();
+  await expect(page.getByLabel('On player 1', { exact: true })).toHaveValue(
+    'p11',
+  );
+  await expect(page.getByLabel('On player 1', { exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Use next planned block' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Save next substitutions' }),
+  ).toBeEnabled();
+});
+
+test('adds a substitution in the grid when the next block has no bench changes', async ({
+  page,
+}) => {
+  const original = heldRun();
+  original.blocks = original.blocks.map((block) => ({
+    ...block,
+    lineup: [...original.lineup],
+  }));
+  await seed(page, original);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await expect(page.locator('.next-change')).toContainText('No bench changes');
+  await page.getByRole('button', { name: 'Edit next substitutions' }).click();
+  await page
+    .getByRole('button', { name: 'Add substitution', exact: true })
+    .click();
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p11');
+  await page.getByRole('button', { name: 'Save next substitutions' }).click();
+  const saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+  );
+  expect(saved.blocks[4].lineup).toEqual([
+    'p0',
+    'p11',
+    ...original.lineup.slice(2),
+  ]);
+  expect(saved.lineup).toEqual(original.lineup);
+  expect(saved.events).toEqual(original.events);
+  await expect(page.locator('.next-change .pitch')).toHaveCount(0);
+});

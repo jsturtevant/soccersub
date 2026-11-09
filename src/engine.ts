@@ -118,6 +118,37 @@ export function substitutions(from: string[], to: string[]) {
   });
 }
 
+export function substitutionLineup(
+  from: string[],
+  planned: string[],
+  pairs: ReturnType<typeof substitutions>,
+): string[] {
+  if (new Set(pairs.map((pair) => pair.off)).size !== pairs.length)
+    throw new Error(
+      'Each outgoing player can appear in only one substitution.',
+    );
+  const lineup = [...from];
+  const keeperSlot = from.indexOf(planned[0]);
+  // Preserve the planned goalkeeper swap, but anchor retained outfield players.
+  if (
+    keeperSlot > 0 &&
+    !pairs.some((pair) => pair.off === planned[0] && pair.off !== pair.on)
+  )
+    [lineup[0], lineup[keeperSlot]] = [lineup[keeperSlot], lineup[0]];
+  for (const { off, on } of pairs) {
+    if (!from.includes(off) || (on !== off && from.includes(on)))
+      throw new Error(
+        'Choose a field player and a bench player, or keep the outgoing player on.',
+      );
+    if (off === on) continue;
+    const slot = lineup.indexOf(off);
+    if (slot < 0 || lineup.includes(on))
+      throw new Error('Each substitution must use different players.');
+    lineup[slot] = on;
+  }
+  return lineup;
+}
+
 function record(
   run: Run,
   at: number,
