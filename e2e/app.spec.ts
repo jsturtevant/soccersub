@@ -141,7 +141,10 @@ test('previews only bench entrants and pairs due substitutions through halftime'
     'Next Jules',
   );
   await expect(
-    page.locator('.sub-pair').filter({ hasText: 'Blair' }),
+    page
+      .getByRole('list', { name: 'Substitutions', exact: true })
+      .locator('.sub-pair')
+      .filter({ hasText: 'Blair' }),
   ).toHaveText(/OFF\s+Blair\s+→\s+ON\s+Jules/);
   await page.getByRole('button', { name: 'Acknowledge changes' }).click();
   await expect(

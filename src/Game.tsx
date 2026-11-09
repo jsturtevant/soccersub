@@ -1,13 +1,37 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatTime, type Match, type Run } from './domain';
-import {
-  actualSeconds,
-  changes,
-  nextBlockIndex,
-  substitutions,
-} from './engine';
+import { actualSeconds, nextBlockIndex, substitutions } from './engine';
 import { Field, swapPlayer } from './Field';
 import { Minutes } from './Planner';
+
+function SubstitutionPairs({
+  pairs,
+  name,
+  label,
+}: {
+  pairs: ReturnType<typeof substitutions>;
+  name: (id: string) => string;
+  label: string;
+}) {
+  if (pairs.length === 0) return <p>No bench changes</p>;
+  return (
+    <div role="list" aria-label={label}>
+      {pairs.map(({ off, on }) => (
+        <p className="sub-pair" role="listitem" key={off}>
+          <span>
+            <span className="sub-label off">OFF</span> {name(off)}
+          </span>{' '}
+          <span className="sub-arrow" aria-hidden="true">
+            →
+          </span>{' '}
+          <span>
+            <span className="sub-label on">ON</span> {name(on)}
+          </span>
+        </p>
+      ))}
+    </div>
+  );
+}
 
 let audio: AudioContext | null = null;
 export async function enableSound() {
@@ -207,7 +231,9 @@ export function Game({
       lineup: [...nextBlock.lineup],
     });
   };
-  const nextDelta = nextBlock ? changes(run.lineup, nextBlock.lineup) : null;
+  const nextPairs = nextBlock
+    ? substitutions(run.lineup, nextBlock.lineup)
+    : [];
   const names = (ids: string[]) =>
     ids
       .map(
@@ -272,22 +298,11 @@ export function Game({
               </p>
               <h2>Next lineup is ready</h2>
               {dueChanges.length > 0 && (
-                <div role="list" aria-label="Substitutions">
-                  {dueChanges.map(({ off, on }) => (
-                    <p className="sub-pair" role="listitem" key={off}>
-                      <span>
-                        <span className="sub-label off">OFF</span>{' '}
-                        {names([off])}
-                      </span>{' '}
-                      <span className="sub-arrow" aria-hidden="true">
-                        →
-                      </span>{' '}
-                      <span>
-                        <span className="sub-label on">ON</span> {names([on])}
-                      </span>
-                    </p>
-                  ))}
-                </div>
+                <SubstitutionPairs
+                  pairs={dueChanges}
+                  name={(id) => names([id])}
+                  label="Substitutions"
+                />
               )}
               {run.notice.missed > 0 && (
                 <p className="hint">
@@ -434,13 +449,12 @@ export function Game({
           <span className="eyebrow">
             Next planned block · match {formatTime(nextBlock.at)}
           </span>
-          <p>
-            {nextBlock.at === half
-              ? 'Halftime lineup'
-              : nextDelta?.on.length
-                ? `${names(nextDelta.off)} off → ${names(nextDelta.on)} on`
-                : 'No bench changes'}
-          </p>
+          {nextBlock.at === half && <p>Halftime lineup</p>}
+          <SubstitutionPairs
+            pairs={nextPairs}
+            name={(id) => names([id])}
+            label="Upcoming substitutions"
+          />
           {!nextDraft && (
             <button className="secondary" onClick={beginNextEdit}>
               Edit next substitutions
