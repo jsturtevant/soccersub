@@ -709,6 +709,16 @@ legend {
   background: #dcefdc;
   color: #24522d;
 }
+.editable-name {
+  padding: 0;
+}
+.editable-name.recently-on select {
+  background: transparent;
+  color: inherit;
+}
+.editable-name .recent-label {
+  padding-bottom: 5px;
+}
 .recent-label {
   display: block;
   font-size: 0.6rem;

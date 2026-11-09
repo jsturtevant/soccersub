@@ -30,6 +30,10 @@ offer only the current player and bench players. Regenerate existing plans to us
 the new rotations;
 saved plans and active games are not changed automatically.
 
+In the block editor, green **Just on** labels mark arrivals from the previous
+block. Yellow **Next** labels show entrants in the next block. These markers
+update as you edit a saved plan or prepare a game.
+
 During a game, use **Edit next substitutions** to adjust the next lineup or
 keep a player who was due to come off. Change either name directly in its OFF-to-ON
 row; choose **Keep on** to cancel, or **Add substitution** to add another row.

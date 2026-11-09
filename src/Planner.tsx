@@ -14,6 +14,7 @@ import {
   type Team,
 } from './domain';
 import { Field, swapPlayer } from './Field';
+import { changes } from './engine';
 
 export function Minutes({
   players,
@@ -66,6 +67,10 @@ export function LineupEditor({
         half.
       </p>
       <p className="hint">
+        Green marks players who came on from the previous block. Yellow shows
+        who comes on in the next block.
+      </p>
+      <p className="hint">
         Generation aims for a turn in each half and no more than one block on
         the bench. This can require a one-block stint or more than three
         substitutions.
@@ -100,6 +105,12 @@ export function LineupEditor({
         formationId={plan.formationId}
         lineup={block.lineup}
         players={players}
+        nextLineup={plan.blocks[index + 1]?.lineup}
+        recentlyOn={
+          index > 0
+            ? changes(plan.blocks[index - 1].lineup, block.lineup).on
+            : []
+        }
         onChange={(slot, player) =>
           onChange(
             editBlock(

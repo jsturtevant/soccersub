@@ -43,38 +43,38 @@ export function Field({
               (change) => change.off === lineup[slot],
             )?.on;
             const incoming = players.find((item) => item.id === incomingId);
+            const justOn = recentlyOn.includes(lineup[slot]);
             return (
               <div className="pitch-player" key={slot}>
                 <span className="shirt" aria-hidden="true">
                   {player?.number || (slot === 0 ? 'G' : '•')}
                 </span>
-                {onChange ? (
-                  <select
-                    aria-label={`Player in field slot ${slot + 1}${slot === 0 ? ' (goalkeeper)' : ''}`}
-                    value={lineup[slot] ?? ''}
-                    onChange={(event) => onChange(slot, event.target.value)}
-                  >
-                    {players
-                      .filter(
-                        (item) =>
-                          item.id === lineup[slot] || !lineup.includes(item.id),
-                      )
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                  </select>
-                ) : (
-                  <span
-                    className={`player-name${recentlyOn.includes(lineup[slot]) ? ' recently-on' : ''}`}
-                  >
+                <span
+                  className={`player-name${onChange ? ' editable-name' : ''}${justOn ? ' recently-on' : ''}`}
+                >
+                  {onChange ? (
+                    <select
+                      aria-label={`Player in field slot ${slot + 1}${slot === 0 ? ' (goalkeeper)' : ''}`}
+                      value={lineup[slot] ?? ''}
+                      onChange={(event) => onChange(slot, event.target.value)}
+                    >
+                      {players
+                        .filter(
+                          (item) =>
+                            item.id === lineup[slot] ||
+                            !lineup.includes(item.id),
+                        )
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
                     <span>{player?.name ?? 'Unassigned'}</span>
-                    {recentlyOn.includes(lineup[slot]) && (
-                      <span className="recent-label">Just on</span>
-                    )}
-                  </span>
-                )}
+                  )}
+                  {justOn && <span className="recent-label">Just on</span>}
+                </span>
                 {incoming && (
                   <span className="incoming-player">
                     <span className="incoming-label">Next</span> {incoming.name}
