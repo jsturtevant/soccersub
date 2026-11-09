@@ -9,8 +9,7 @@ function isInstallPrompt(event: Event): event is InstallPromptEvent {
   return 'prompt' in event && typeof event.prompt === 'function';
 }
 
-export function Pwa() {
-  const [error, setError] = useState('');
+export function useInstallPrompt() {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
     null,
   );
@@ -34,6 +33,11 @@ export function Pwa() {
       window.removeEventListener('appinstalled', completed);
     };
   }, []);
+  return [installPrompt, setInstallPrompt] as const;
+}
+
+export function Pwa() {
+  const [error, setError] = useState('');
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh],
@@ -44,7 +48,7 @@ export function Pwa() {
       setError(`Offline setup failed. ${message(error)}`);
     },
   });
-  if (!offlineReady && !needRefresh && !error && !installPrompt) return null;
+  if (!offlineReady && !needRefresh && !error) return null;
   return (
     <aside
       className={`pwa-banner${needRefresh ? ' update-banner' : ''}`}
@@ -92,22 +96,6 @@ export function Pwa() {
           </button>
         </>
       ) : null}
-      {installPrompt && (
-        <button
-          className="secondary"
-          onClick={async () => {
-            setInstallPrompt(null);
-            try {
-              await installPrompt.prompt();
-            } catch (error) {
-              console.error('App installation failed', error);
-              setError(`App installation failed. ${message(error)}`);
-            }
-          }}
-        >
-          Install app
-        </button>
-      )}
       {error && (
         <button className="text-button" onClick={() => setError('')}>
           Dismiss

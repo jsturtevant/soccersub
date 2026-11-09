@@ -71,8 +71,9 @@ local development or a custom-domain root.
 The Pages workflow deploys `main`. Configure the repository's Pages source as
 **GitHub Actions**. To install on iPhone or iPad, use Safari's Share menu and choose
 Add to Home Screen. Other supported browsers show an Install app option.
-When the browser offers installation, the app also shows an **Install app**
-button. Browsers without this prompt still use their own installation menus.
+When the browser offers installation, **Your data → Install for the touchline**
+shows an **Install app** button. Browsers without this prompt still use their own
+installation menus.
 
 Manual in-app updates are blocked while a game is active. Browsers may activate
 an update after all app tabs close; the saved game remains available on reopening.
