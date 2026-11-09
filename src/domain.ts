@@ -295,6 +295,7 @@ export function generateBlocks(
   uniqueIds(players, 'Players');
   if (start) validateLineup(start, players, formationId);
   const minutes = Object.fromEntries(players.map((player) => [player.id, 0]));
+  const stints = Object.fromEntries(players.map((player) => [player.id, 0]));
   const preferred = players.filter((player) =>
     player.roles.includes('goalkeeper'),
   );
@@ -315,16 +316,42 @@ export function generateBlocks(
       const keeperSlot = lineup.indexOf(keeper);
       if (keeperSlot > 0) lineup[keeperSlot] = lineup[0];
       lineup[0] = keeper;
-      const candidates = players
+      let candidates = players
         .filter((player) => player.id !== keeper)
         .sort(
           (a, b) =>
+            Number(previous?.includes(b.id) && stints[b.id] < 2) -
+              Number(previous?.includes(a.id) && stints[a.id] < 2) ||
             minutes[a.id] - minutes[b.id] ||
             Number(previous?.includes(b.id)) -
               Number(previous?.includes(a.id)) ||
             a.id.localeCompare(b.id),
         )
         .slice(0, slots.length - 1);
+      const current = previous;
+      if (current) {
+        const limit = 3 - Number(!current.includes(keeper));
+        const skipped = new Set(
+          candidates
+            .filter((player) => !current.includes(player.id))
+            .slice(limit)
+            .map((player) => player.id),
+        );
+        candidates = candidates.filter((player) => !skipped.has(player.id));
+        const retained = players
+          .filter(
+            (player) =>
+              current.includes(player.id) &&
+              player.id !== keeper &&
+              !candidates.some((candidate) => candidate.id === player.id),
+          )
+          .sort(
+            (a, b) => minutes[a.id] - minutes[b.id] || a.id.localeCompare(b.id),
+          );
+        candidates.push(
+          ...retained.slice(0, slots.length - 1 - candidates.length),
+        );
+      }
       const selected = new Set(candidates.map((player) => player.id));
       const incoming = candidates.filter(
         (player) => !lineup.slice(1).includes(player.id),
@@ -347,6 +374,7 @@ export function generateBlocks(
     const length = (times[index + 1] ?? total) - at;
     lineup.forEach((player) => {
       minutes[player] += length;
+      stints[player] = previous?.includes(player) ? stints[player] + 1 : 1;
     });
     previous = lineup;
     return { at, lineup };

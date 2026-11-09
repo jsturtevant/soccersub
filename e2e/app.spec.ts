@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   emptyState,
-  generateBlocks,
   type Player,
   type Run,
   type Template,
@@ -33,7 +32,26 @@ const template: Template = {
   formationId: '9:3-2-3',
   duration: 120,
   interval: 30,
-  blocks: generateBlocks(players, '9:3-2-3', 120, 30),
+  blocks: [
+    { at: 0, lineup: players.slice(0, 9).map((player) => player.id) },
+    {
+      at: 30,
+      lineup: ['p0', 'p9', ...players.slice(2, 9).map((player) => player.id)],
+    },
+    {
+      at: 60,
+      lineup: ['p1', 'p9', ...players.slice(2, 9).map((player) => player.id)],
+    },
+    {
+      at: 90,
+      lineup: [
+        'p1',
+        'p9',
+        'p10',
+        ...players.slice(3, 9).map((player) => player.id),
+      ],
+    },
+  ],
 };
 const team = {
   id: 'team',

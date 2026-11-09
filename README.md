@@ -20,7 +20,10 @@ Plans are reusable. A game is an independent copy, so changes during a game do n
 change the plan or earlier matches.
 
 Generated substitutions keep retained players in their field positions, except
-for the goalkeeper change at halftime. Field pickers offer only the current
+for the goalkeeper change at halftime. Each generated change brings on at most
+three bench players. Players, including starters, stay on for at least two
+blocks before rotating off, except for the halftime goalkeeper change. Field
+pickers offer only the current
 player and bench players. Regenerate existing plans to use the new rotations;
 saved plans and active games are not changed automatically.
 

@@ -33,7 +33,34 @@ const template = (): Template => ({
   formationId: '9:3-2-3',
   duration: 2400,
   interval: 900,
-  blocks: generateBlocks(players, '9:3-2-3', 2400, 900),
+  blocks: [
+    { at: 0, lineup: players.slice(0, 9).map((player) => player.id) },
+    {
+      at: 900,
+      lineup: [
+        'player-0',
+        'player-9',
+        ...players.slice(2, 9).map((player) => player.id),
+      ],
+    },
+    {
+      at: 1200,
+      lineup: [
+        'player-1',
+        'player-9',
+        ...players.slice(2, 9).map((player) => player.id),
+      ],
+    },
+    {
+      at: 2100,
+      lineup: [
+        'player-1',
+        'player-9',
+        'player-10',
+        ...players.slice(3, 9).map((player) => player.id),
+      ],
+    },
+  ],
 });
 const run = () =>
   createRun(
@@ -68,6 +95,52 @@ describe('lineup planning', () => {
     expect(Math.max(...outfield) - Math.min(...outfield)).toBeLessThanOrEqual(
       300,
     );
+  });
+  it('limits each generated change to at most three incoming substitutes', () => {
+    const squad: Player[] = Array.from({ length: 18 }, (_, index) => ({
+      id: `squad-${index}`,
+      name: `Player ${index}`,
+      number: '',
+      roles: index < 2 ? ['goalkeeper'] : [],
+    }));
+    for (const item of formations) {
+      const blocks = generateBlocks(squad, item.id, 3600, 300);
+      for (let index = 1; index < blocks.length; index++) {
+        const previous = blocks[index - 1].lineup;
+        expect(
+          blocks[index].lineup.filter((id) => !previous.includes(id)).length,
+          `${item.id}, block ${index}`,
+        ).toBeLessThanOrEqual(3);
+      }
+      expect(
+        Object.values(plannedSeconds(blocks, 3600, squad)).reduce(
+          (sum, value) => sum + value,
+          0,
+        ),
+      ).toBe(item.size * 3600);
+    }
+  });
+  it('keeps players on for two consecutive blocks before rotating them off', () => {
+    for (const item of formations) {
+      const blocks = generateBlocks(players, item.id, 3600, 300);
+      expect(blocks[1].lineup).toEqual(blocks[0].lineup);
+      const stints = new Map(blocks[0].lineup.map((id) => [id, 1]));
+      for (let index = 1; index < blocks.length; index++) {
+        const previous = blocks[index - 1].lineup;
+        const next = blocks[index].lineup;
+        for (const id of previous.filter((id) => !next.includes(id))) {
+          const keeperChange = blocks[index].at === 1800 && id === previous[0];
+          if (!keeperChange)
+            expect(
+              stints.get(id),
+              `${item.id}, block ${index}, ${id}`,
+            ).toBeGreaterThanOrEqual(2);
+          stints.delete(id);
+        }
+        for (const id of next)
+          stints.set(id, previous.includes(id) ? (stints.get(id) ?? 0) + 1 : 1);
+      }
+    }
   });
   it('keeps retained players in their slots across all generated presets', () => {
     for (const item of formations) {
