@@ -1,5 +1,7 @@
 import {
   uid,
+  editBlock,
+  keepGoalkeeper,
   validateLineup,
   validatePlan,
   type Player,
@@ -119,13 +121,22 @@ export function advance(run: Run, now: number, catchUp = false): Run {
 }
 
 export function acknowledge(run: Run, lineup?: string[]): Run {
-  const next = structuredClone(run);
+  let next = structuredClone(run);
   const target =
     lineup ??
     (next.pendingBlock !== null
       ? next.blocks[next.pendingBlock].lineup
       : next.lineup);
   validateLineup(target, next.players, next.formationId);
+  if (lineup && target[0] !== next.lineup[0])
+    next = keepGoalkeeper(
+      next,
+      target[0],
+      next.clock.elapsed,
+      next.clock.phase === 'first' || next.clock.phase === 'halftime'
+        ? next.duration / 2
+        : next.duration,
+    );
   record(next, next.clock.elapsed, target, lineup ? 'coach' : 'planned');
   if (next.pendingBlock !== null) next.appliedBlock = next.pendingBlock;
   next.pendingBlock = null;
@@ -136,12 +147,13 @@ export function acknowledge(run: Run, lineup?: string[]): Run {
 export function startSecondHalf(run: Run, now: number, lineup?: string[]): Run {
   if (run.clock.phase !== 'halftime')
     throw new Error('The second half can only start at halftime.');
-  const next = structuredClone(run);
+  let next = structuredClone(run);
   const index = next.blocks.findIndex(
     (block) => block.at === next.duration / 2,
   );
   const target = lineup ?? next.blocks[index].lineup;
   validateLineup(target, next.players, next.formationId);
+  if (lineup) next = editBlock(next, index, target, next.players);
   record(next, next.duration / 2, target, lineup ? 'coach' : 'planned');
   next.appliedBlock = index;
   next.pendingBlock = null;

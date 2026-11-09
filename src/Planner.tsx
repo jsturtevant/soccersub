@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   formation,
+  editBlock,
   formations,
   formatTime,
   generateBlocks,
@@ -59,7 +60,8 @@ export function LineupEditor({
       <p className="hint">
         Choose a block, then tap a player on the field to select a substitute
         from the bench. Players who stay on keep their positions. Goalkeepers
-        may change at halftime.
+        may change at halftime. A goalkeeper edit lasts for the rest of that
+        half.
       </p>
       <div className="block-tabs" role="group" aria-label="Lineup blocks">
         {plan.blocks.map((item, i) => (
@@ -80,14 +82,14 @@ export function LineupEditor({
         lineup={block.lineup}
         players={players}
         onChange={(slot, player) =>
-          onChange({
-            ...plan,
-            blocks: plan.blocks.map((item, i) =>
-              i === index
-                ? { ...item, lineup: swapPlayer(item.lineup, slot, player) }
-                : item,
+          onChange(
+            editBlock(
+              plan,
+              index,
+              swapPlayer(block.lineup, slot, player),
+              players,
             ),
-          })
+          )
         }
       />
       <div className="bench">

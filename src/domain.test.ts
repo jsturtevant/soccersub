@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boundaries,
   emptyState,
+  editBlock,
   formations,
   generateBlocks,
   parseState,
@@ -72,6 +73,22 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('resolves future goalkeeper duplicates without moving other players', () => {
+    const original = template();
+    const next = editBlock(
+      original,
+      0,
+      ['player-9', ...original.blocks[0].lineup.slice(1)],
+      players,
+    );
+    expect(next.blocks[1].lineup).toEqual([
+      'player-9',
+      'player-0',
+      ...original.blocks[1].lineup.slice(2),
+    ]);
+    expect(next.blocks.slice(2)).toEqual(original.blocks.slice(2));
+    expect(original.blocks[0].lineup[0]).toBe('player-0');
+  });
   it('restarts intervals in each half and includes shorter final blocks', () => {
     expect(boundaries(2400, 900)).toEqual([0, 900, 1200, 2100]);
   });
