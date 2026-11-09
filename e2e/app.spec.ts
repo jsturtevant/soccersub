@@ -716,3 +716,35 @@ test('preserves data and reports a failed delete', async ({ page }) => {
     before,
   );
 });
+
+test('shows the upcoming substitutions in the same paired rows as ready changes', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const upcoming = page.getByRole('list', {
+    name: 'Upcoming substitutions',
+    exact: true,
+  });
+  await expect(upcoming.getByRole('listitem')).toHaveCount(2);
+  await expect(upcoming.getByRole('listitem').first()).toHaveText(
+    /OFF\s+Blair\s+→\s+ON\s+Jules/,
+  );
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.clock.runFor(35_000);
+  const ready = page.getByRole('list', { name: 'Substitutions', exact: true });
+  expect(await upcoming.getByRole('listitem').allTextContents()).toEqual(
+    await ready.getByRole('listitem').allTextContents(),
+  );
+  await page.getByRole('button', { name: 'Acknowledge changes' }).click();
+  await page.clock.runFor(30_000);
+  await expect(
+    upcoming.getByRole('listitem').filter({ hasText: 'Alex' }),
+  ).toHaveText(/OFF\s+Alex\s+→\s+ON\s+Lee/);
+  await page
+    .getByRole('button', { name: 'Start second half', exact: true })
+    .click();
+  await expect(page.locator('.next-change')).toContainText('No bench changes');
+});
