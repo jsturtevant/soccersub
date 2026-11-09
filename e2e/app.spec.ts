@@ -97,17 +97,18 @@ test('explains why a generated plan cannot be saved after clearing its name', as
   await page
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
+  const nameWarning = page
+    .getByRole('status')
+    .filter({ hasText: 'Enter a plan name before saving.' });
   for (const name of ['', '   ']) {
     await page.getByLabel('Plan name').fill(name);
     await expect(
       page.getByRole('button', { name: 'Save plan', exact: true }),
     ).toBeDisabled();
-    await expect(page.getByRole('status')).toHaveText(
-      'Enter a plan name before saving.',
-    );
+    await expect(nameWarning).toHaveText('Enter a plan name before saving.');
   }
   await page.getByLabel('Plan name').fill('Sunday rotation');
-  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(nameWarning).toHaveCount(0);
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   const plan = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Sunday rotation' }),
