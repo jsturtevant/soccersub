@@ -84,6 +84,32 @@ function previewRun() {
   );
 }
 
+function heldRun() {
+  const lineup = players.slice(0, 9).map((player) => player.id);
+  const firstChange = ['p0', 'p9', ...lineup.slice(2)];
+  const secondHalf = ['p1', ...firstChange.slice(1)];
+  return createRun(
+    team,
+    {
+      ...template,
+      duration: 240,
+      blocks: [
+        { at: 0, lineup },
+        { at: 30, lineup },
+        { at: 60, lineup: firstChange },
+        { at: 90, lineup: firstChange },
+        { at: 120, lineup: secondHalf },
+        { at: 150, lineup: secondHalf },
+        { at: 180, lineup: ['p1', 'p9', 'p10', ...lineup.slice(3)] },
+        { at: 210, lineup: ['p1', 'p9', 'p10', ...lineup.slice(3)] },
+      ],
+    },
+    players,
+    '2026-11-09',
+    'United',
+  );
+}
+
 async function seed(page: Page, active: boolean | Run = false) {
   const state = {
     ...emptyState(),
@@ -791,4 +817,56 @@ test('updates estimated playing time from saved next substitutions while actual 
   await page.getByRole('button', { name: 'Resume saved game' }).click();
   await estimate.locator('summary').click();
   await expect(lee).toHaveText('0:30');
+});
+
+test('shows the first real substitutions before an unchanged opening block', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-09T12:00:00Z') });
+  await seed(page, heldRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const upcoming = page.getByRole('list', {
+    name: 'Upcoming substitutions',
+    exact: true,
+  });
+  await expect(upcoming.getByRole('listitem')).toHaveCount(1);
+  await expect(upcoming).toHaveText(/OFF\s+Blair\s+→\s+ON\s+Jules/);
+  await expect(page.locator('.next-change')).toContainText('match 1:00');
+  const field = page.getByRole('group', { name: 'Live lineup', exact: true });
+  await expect(field.locator('.incoming-player')).toHaveText('Next Jules');
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.clock.runFor(35_000);
+  await expect(upcoming).toHaveText(/OFF\s+Blair\s+→\s+ON\s+Jules/);
+  await expect(field.locator('.incoming-player')).toHaveText('Next Jules');
+});
+
+test('highlights the latest incoming players through held blocks and reload', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-09T12:00:00Z') });
+  await seed(page, heldRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const field = page.getByRole('group', { name: 'Live lineup', exact: true });
+  await expect(field.locator('.recently-on')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.clock.runFor(65_000);
+  await expect(field.locator('.recently-on')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Acknowledge changes' }).click();
+  await expect(field.locator('.recently-on')).toHaveText('JulesJust on');
+  await expect(field.locator('.recently-on')).toHaveCSS(
+    'background-color',
+    'rgb(220, 239, 220)',
+  );
+  await page.clock.runFor(35_000);
+  await expect(field.locator('.recently-on')).toHaveText('JulesJust on');
+  await page.reload();
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await expect(field.locator('.recently-on')).toHaveText('JulesJust on');
+  await page.clock.runFor(25_000);
+  await page
+    .getByRole('button', { name: 'Start second half', exact: true })
+    .click();
+  await expect(field.locator('.recently-on')).toHaveText('BlairJust on');
 });
