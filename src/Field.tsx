@@ -29,7 +29,7 @@ export function Field({
     .reverse();
   fieldRows.push([0]);
   return (
-    <div className="pitch" aria-label={label}>
+    <div className="pitch" role="group" aria-label={label}>
       <div className="pitch-center" aria-hidden="true" />
       <div className="pitch-box top" aria-hidden="true" />
       <div className="pitch-box bottom" aria-hidden="true" />

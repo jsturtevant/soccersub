@@ -144,8 +144,20 @@ export function Game({
   attempt: (action: () => void) => void;
 }) {
   const [editing, setEditing] = useState<string[] | null>(null);
-  const [actualLineup, setActualLineup] = useState<string[] | null>(null);
+  const [actualDraft, setActualDraft] = useState<{
+    base: string[];
+    lineup: string[];
+  } | null>(null);
   const [editingSecondHalf, setEditingSecondHalf] = useState(false);
+  const actualLineup =
+    actualDraft &&
+    actualDraft.lineup.some((id, index) => id !== actualDraft.base[index])
+      ? actualDraft.lineup
+      : run.lineup;
+  const staleActualDraft =
+    actualDraft !== null &&
+    actualDraft.base.some((id, index) => id !== run.lineup[index]) &&
+    actualLineup.some((id, index) => id !== run.lineup[index]);
   const half = run.duration / 2;
   const unresolvedChanges = run.notice !== null || run.pendingBlock !== null;
   const phaseLabel = {
@@ -432,22 +444,43 @@ export function Game({
           </p>
           <details
             className="card"
-            onToggle={(event) =>
-              setActualLineup(event.currentTarget.open ? [...run.lineup] : null)
-            }
+            onToggle={(event) => {
+              if (!event.currentTarget.open) setActualDraft(null);
+            }}
           >
             <summary>Adjust actual lineup</summary>
             <Field
               formationId={run.formationId}
-              lineup={actualLineup ?? run.lineup}
+              lineup={actualLineup}
               players={run.players}
-              onChange={(slot, id) =>
-                setActualLineup(
-                  swapPlayer(actualLineup ?? run.lineup, slot, id),
-                )
+              onChange={
+                staleActualDraft
+                  ? undefined
+                  : (slot, id) =>
+                      setActualDraft({
+                        base: [...run.lineup],
+                        lineup: swapPlayer(actualLineup, slot, id),
+                      })
               }
             />
-            <button onClick={() => accept(actualLineup ?? run.lineup)}>
+            {staleActualDraft && (
+              <div className="warning" role="status">
+                <p>
+                  The live lineup changed. Your edits are kept here. Use the
+                  current lineup to review the correction again.
+                </p>
+                <button
+                  className="secondary"
+                  onClick={() => setActualDraft(null)}
+                >
+                  Use current lineup
+                </button>
+              </div>
+            )}
+            <button
+              disabled={staleActualDraft}
+              onClick={() => accept(actualLineup)}
+            >
               Apply actual lineup
             </button>
           </details>
