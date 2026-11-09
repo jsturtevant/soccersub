@@ -6,7 +6,7 @@ import { Pwa } from './Pwa';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
     <Pwa />
+    <App />
   </React.StrictMode>,
 );

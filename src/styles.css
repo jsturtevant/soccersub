@@ -916,6 +916,20 @@ footer {
 .pwa-banner p {
   margin: 0;
 }
+.update-banner {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff1ee;
+  color: #78372c;
+  border-top: 0;
+  border-bottom: 1px solid #e7c4bc;
+}
+.update-banner button.secondary {
+  background: #f6ded9;
+  border-color: #e2bbb0;
+  color: #873c2d;
+}
 @media (max-width: 600px) {
   .app-header {
     padding: 18px 20px;

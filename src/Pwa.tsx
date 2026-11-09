@@ -1,10 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { loadState } from './storage';
 import { message } from './useStore';
 
+type InstallPromptEvent = Event & { prompt: () => Promise<unknown> };
+
+function isInstallPrompt(event: Event): event is InstallPromptEvent {
+  return 'prompt' in event && typeof event.prompt === 'function';
+}
+
 export function Pwa() {
   const [error, setError] = useState('');
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+    null,
+  );
+  useEffect(() => {
+    let installed =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in navigator && navigator.standalone === true);
+    const available = (event: Event) => {
+      if (installed || !isInstallPrompt(event)) return;
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    const completed = () => {
+      installed = true;
+      setInstallPrompt(null);
+    };
+    window.addEventListener('beforeinstallprompt', available);
+    window.addEventListener('appinstalled', completed);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', available);
+      window.removeEventListener('appinstalled', completed);
+    };
+  }, []);
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh],
@@ -15,9 +44,13 @@ export function Pwa() {
       setError(`Offline setup failed. ${message(error)}`);
     },
   });
-  if (!offlineReady && !needRefresh && !error) return null;
+  if (!offlineReady && !needRefresh && !error && !installPrompt) return null;
   return (
-    <aside className="pwa-banner" aria-label="App availability" role="status">
+    <aside
+      className={`pwa-banner${needRefresh ? ' update-banner' : ''}`}
+      aria-label="App availability"
+      role="status"
+    >
       {error ? (
         <p>{error}</p>
       ) : needRefresh ? (
@@ -48,7 +81,7 @@ export function Pwa() {
             Update app
           </button>
         </>
-      ) : (
+      ) : offlineReady ? (
         <>
           <p>Ready to use offline on this device.</p>
           <button
@@ -58,6 +91,22 @@ export function Pwa() {
             Dismiss
           </button>
         </>
+      ) : null}
+      {installPrompt && (
+        <button
+          className="secondary"
+          onClick={async () => {
+            setInstallPrompt(null);
+            try {
+              await installPrompt.prompt();
+            } catch (error) {
+              console.error('App installation failed', error);
+              setError(`App installation failed. ${message(error)}`);
+            }
+          }}
+        >
+          Install app
+        </button>
       )}
       {error && (
         <button className="text-button" onClick={() => setError('')}>

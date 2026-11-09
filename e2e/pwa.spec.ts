@@ -1,6 +1,71 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { emptyState, generateBlocks, type Player } from '../src/domain';
 import { createRun } from '../src/engine';
+
+async function offerInstall(page: Page, fails = false) {
+  return page.evaluate((fails) => {
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    Object.defineProperty(event, 'prompt', {
+      value: async () => {
+        if (fails) throw new Error('Installation is unavailable.');
+        localStorage.setItem(
+          'test.install-prompts',
+          String(Number(localStorage.getItem('test.install-prompts') ?? 0) + 1),
+        );
+      },
+    });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, fails);
+}
+
+test('PWA offers installation only for an available browser prompt', async ({
+  page,
+}) => {
+  await page.goto('./');
+  expect(await offerInstall(page)).toBe(true);
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  await page.getByRole('button', { name: 'Install app', exact: true }).click();
+  expect(
+    await page.evaluate(() => localStorage.getItem('test.install-prompts')),
+  ).toBe('1');
+  await expect(
+    page.getByRole('button', { name: 'Install app', exact: true }),
+  ).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+  expect(await offerInstall(page)).toBe(false);
+  await expect(
+    page.getByRole('button', { name: 'Install app', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('PWA reports install prompt failures', async ({ page }) => {
+  await page.goto('./');
+  await offerInstall(page, true);
+  await page.getByRole('button', { name: 'Install app', exact: true }).click();
+  await expect(
+    page.getByRole('status', { name: 'App availability' }),
+  ).toContainText('Installation is unavailable.');
+});
+
+test('PWA does not offer installation when opened as an installed app', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const matchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query) => {
+      const media = matchMedia(query);
+      if (query === '(display-mode: standalone)')
+        Object.defineProperty(media, 'matches', { value: true });
+      return media;
+    };
+  });
+  await page.goto('./');
+  expect(await offerInstall(page)).toBe(false);
+  await expect(
+    page.getByRole('button', { name: 'Install app', exact: true }),
+  ).toHaveCount(0);
+});
 
 test('PWA blocks manual updates during a game and preserves it when the browser activates an update', async ({
   page,
@@ -65,6 +130,20 @@ test('PWA blocks manual updates during a game and preserves it when the browser 
   await expect(
     page.getByRole('button', { name: 'Update app', exact: true }),
   ).toBeVisible();
+  const banner = page.getByRole('status', { name: 'App availability' });
+  expect(
+    await banner.evaluate((node) => {
+      const header = document.querySelector('.app-header');
+      return (
+        header !== null &&
+        node.getBoundingClientRect().bottom <=
+          header.getBoundingClientRect().top
+      );
+    }),
+  ).toBe(true);
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(banner).toBeInViewport();
   await page.getByRole('button', { name: 'Update app', exact: true }).click();
   await expect(
     page.getByText('End or discard the active game before updating.', {
