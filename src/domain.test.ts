@@ -16,6 +16,7 @@ import {
   actualSeconds,
   advance,
   createRun,
+  editNextBlock,
   startSecondHalf,
   substitutions,
   toggleClock,
@@ -209,6 +210,43 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('cancels a pending substitution without changing the actual events', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const next = editNextBlock(due, 1, due.blocks[1].lineup, due.lineup);
+    expect(next.lineup).toEqual(due.lineup);
+    expect(next.events).toEqual(due.events);
+    expect(next.pendingBlock).toBeNull();
+    expect(next.notice).toBeNull();
+    expect(next.appliedBlock).toBe(1);
+  });
+  it('propagates a next-half goalkeeper edit without changing live history', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    original.appliedBlock = 1;
+    const target = ['player-10', ...original.blocks[2].lineup.slice(1)];
+    const next = editNextBlock(original, 2, original.blocks[2].lineup, target);
+    expect(next.blocks[3].lineup).toEqual([
+      'player-10',
+      'player-9',
+      'player-1',
+      ...original.blocks[3].lineup.slice(3),
+    ]);
+    expect(next.lineup).toEqual(original.lineup);
+    expect(next.events).toEqual(original.events);
+    expect(next.blocks.slice(0, 2)).toEqual(original.blocks.slice(0, 2));
+  });
+  it('rejects edits of a stale next block or changed draft base', () => {
+    const original = run();
+    const base = original.blocks[1].lineup;
+    const applied = acknowledge(advance(toggleClock(original, 1000), 951000));
+    expect(() => editNextBlock(applied, 1, base, base)).toThrow(
+      'next block changed',
+    );
+    const edited = editNextBlock(original, 1, base, original.lineup);
+    expect(() => editNextBlock(edited, 1, base, base)).toThrow(
+      'next block changed',
+    );
+  });
   it('keeps a corrected goalkeeper for the remaining first half only', () => {
     const original = run();
     original.clock.elapsed = 100;

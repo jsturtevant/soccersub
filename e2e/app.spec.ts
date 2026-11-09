@@ -227,10 +227,10 @@ test('edits upcoming substitutions without changing actual time and can keep an 
     exact: true,
   });
   await editor
-    .getByLabel('Player in field slot 2 (defender)', { exact: true })
+    .getByLabel('Player in field slot 2', { exact: true })
     .selectOption('p1');
   await editor
-    .getByLabel('Player in field slot 3 (defender)', { exact: true })
+    .getByLabel('Player in field slot 3', { exact: true })
     .selectOption('p11');
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   const saved = await page.evaluate(
@@ -263,7 +263,7 @@ test('retains the next-substitution draft when saving fails', async ({
     exact: true,
   });
   await editor
-    .getByLabel('Player in field slot 2 (defender)', { exact: true })
+    .getByLabel('Player in field slot 2', { exact: true })
     .selectOption('p1');
   await page.evaluate(() => {
     Storage.prototype.setItem = () => {
@@ -273,7 +273,7 @@ test('retains the next-substitution draft when saving fails', async ({
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   await expect(page.getByRole('alert')).toContainText('Storage is full');
   await expect(
-    editor.getByLabel('Player in field slot 2 (defender)', { exact: true }),
+    editor.getByLabel('Player in field slot 2', { exact: true }),
   ).toHaveValue('p1');
   await expect(
     page.getByRole('button', { name: 'Save next substitutions' }),
@@ -291,7 +291,7 @@ test('protects next-substitution edits when the next block advances', async ({
   await page.getByRole('button', { name: 'Edit next substitutions' }).click();
   await page
     .getByRole('group', { name: 'Next lineup editor', exact: true })
-    .getByLabel('Player in field slot 3 (defender)', { exact: true })
+    .getByLabel('Player in field slot 3', { exact: true })
     .selectOption('p11');
   await page.clock.runFor(35_000);
   await page.getByRole('button', { name: 'Acknowledge changes' }).click();

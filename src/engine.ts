@@ -45,6 +45,44 @@ export function changes(from: string[], to: string[]) {
   };
 }
 
+export function nextBlockIndex(run: Run): number {
+  if (run.clock.phase === 'fulltime') return -1;
+  if (run.pendingBlock !== null) return run.pendingBlock;
+  return run.blocks.findIndex((block) =>
+    run.clock.phase === 'halftime'
+      ? block.at === run.duration / 2
+      : block.at > run.clock.elapsed,
+  );
+}
+
+export function editNextBlock(
+  run: Run,
+  index: number,
+  base: string[],
+  lineup: string[],
+): Run {
+  if (
+    index !== nextBlockIndex(run) ||
+    index <= run.appliedBlock ||
+    base.some((id, slot) => id !== run.blocks[index]?.lineup[slot]) ||
+    base.length !== run.blocks[index]?.lineup.length
+  )
+    throw new Error(
+      'The next block changed. Review the next planned block again.',
+    );
+  const next = editBlock(run, index, lineup, run.players);
+  if (next.pendingBlock === index) {
+    if (lineup.every((id, slot) => id === next.lineup[slot])) {
+      next.appliedBlock = index;
+      next.pendingBlock = null;
+      next.notice = null;
+    } else {
+      next.notice = { from: [...next.lineup], to: [...lineup], missed: 0 };
+    }
+  }
+  return next;
+}
+
 export function substitutions(from: string[], to: string[]) {
   return changes(from, to).off.map((off) => {
     let on = to[from.indexOf(off)];
