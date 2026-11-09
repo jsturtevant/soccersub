@@ -93,6 +93,28 @@ describe('lineup planning', () => {
       ).toBe(item.size * 3600);
     }
   });
+  it('keeps players on for two consecutive blocks before rotating them off', () => {
+    for (const item of formations) {
+      const blocks = generateBlocks(players, item.id, 3600, 300);
+      expect(blocks[1].lineup).toEqual(blocks[0].lineup);
+      const stints = new Map(blocks[0].lineup.map((id) => [id, 1]));
+      for (let index = 1; index < blocks.length; index++) {
+        const previous = blocks[index - 1].lineup;
+        const next = blocks[index].lineup;
+        for (const id of previous.filter((id) => !next.includes(id))) {
+          const keeperChange = blocks[index].at === 1800 && id === previous[0];
+          if (!keeperChange)
+            expect(
+              stints.get(id),
+              `${item.id}, block ${index}, ${id}`,
+            ).toBeGreaterThanOrEqual(2);
+          stints.delete(id);
+        }
+        for (const id of next)
+          stints.set(id, previous.includes(id) ? (stints.get(id) ?? 0) + 1 : 1);
+      }
+    }
+  });
   it('keeps retained players in their slots across all generated presets', () => {
     for (const item of formations) {
       for (const start of [
