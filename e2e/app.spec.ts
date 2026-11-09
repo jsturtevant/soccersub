@@ -56,6 +56,49 @@ async function seed(page: Page, active = false) {
   }, state);
 }
 
+test('keeps unresolved substitutions visible at halftime', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
+  await seed(page, true);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.clock.runFor(65_000);
+  await expect(
+    page.getByRole('heading', { name: 'Halftime', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Acknowledge changes' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Start second half', exact: true }),
+  ).toBeDisabled();
+});
+
+test('sounds alerts while the coach is viewing history', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function (when?: number) {
+      localStorage.setItem(
+        'test.tones',
+        String(Number(localStorage.getItem('test.tones') ?? 0) + 1),
+      );
+      original.call(this, when);
+    };
+  });
+  await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
+  await seed(page, true);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.clock.runFor(35_000);
+  await expect
+    .poll(() =>
+      page.evaluate(() => Number(localStorage.getItem('test.tones') ?? 0)),
+    )
+    .toBeGreaterThan(0);
+});
+
 test('creates a roster player and persists it across reloads', async ({
   page,
 }) => {
