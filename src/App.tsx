@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  emptyState,
   formation,
   playerSchema,
   roles,
@@ -579,6 +580,31 @@ function Settings({
             </div>
           </div>
         )}
+      </div>
+      <div className="card">
+        <h2>Delete local data</h2>
+        <p>
+          Delete all teams, players, plans, match history, and the unfinished
+          game from this browser. Export a backup first. The app remains
+          installed.
+        </p>
+        <button
+          className="danger secondary"
+          disabled={busy}
+          onClick={() => {
+            if (
+              confirm(
+                'Permanently delete all teams, players, plans, match history, and the unfinished game? Export a backup first.',
+              )
+            )
+              attempt(() => {
+                replace(emptyState());
+                setPreview(null);
+              });
+          }}
+        >
+          Delete all data
+        </button>
       </div>
       <div className="card">
         <h2>Install for the touchline</h2>

@@ -500,3 +500,64 @@ test('rejects bad imports without replacing data and requires preview confirmati
     0,
   );
 });
+
+test('requires confirmation to delete all app data including an unfinished game', async ({
+  page,
+}) => {
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  const before = await page.evaluate(() =>
+    localStorage.getItem('soccersub.v1'),
+  );
+  page.once('dialog', async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toContain('unfinished game');
+    await dialog.dismiss();
+  });
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  expect(await page.evaluate(() => localStorage.getItem('soccersub.v1'))).toBe(
+    before,
+  );
+  page.once('dialog', (dialog) => dialog.accept());
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('soccersub.v1')!),
+    ),
+  ).toEqual(emptyState());
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Live game' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Teams & plans' }).click();
+  await expect(page.getByRole('button', { name: /Riverside U12/ })).toHaveCount(
+    0,
+  );
+});
+
+test('preserves data and reports a failed delete', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  const before = await page.evaluate(() =>
+    localStorage.getItem('soccersub.v1'),
+  );
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Storage is unavailable.', 'SecurityError');
+    };
+  });
+  page.once('dialog', (dialog) => dialog.accept());
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Storage is unavailable.',
+  );
+  expect(await page.evaluate(() => localStorage.getItem('soccersub.v1'))).toBe(
+    before,
+  );
+});

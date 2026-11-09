@@ -39,6 +39,10 @@ Import validates a backup and shows a preview before replacing saved data. End o
 discard an active game before importing. Use one editing tab at a time; other tabs
 stop editing when saved data changes.
 
+Your data also has a confirmed **Delete all data** action. It removes all saved
+records, including an unfinished game, but keeps the app installed and usable
+offline.
+
 ## Development
 
 Requires Node.js 24 and [just](https://github.com/casey/just).
