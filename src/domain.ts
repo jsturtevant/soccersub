@@ -231,12 +231,26 @@ export function parseState(input: unknown): AppState {
       throw new Error('Saved game timing is invalid.');
     for (const event of run.events)
       validateLineup(event.lineup, run.players, run.formationId);
+    if (
+      run.events
+        .at(-1)
+        ?.lineup.some((player, index) => player !== run.lineup[index])
+    ) {
+      throw new Error('The current lineup must match the actual event log.');
+    }
+    if (
+      run.pendingBlock !== null &&
+      run.pendingBlock !== run.appliedBlock + 1
+    ) {
+      throw new Error('The pending block must follow the applied block.');
+    }
     const { phase, elapsed, anchor } = run.clock;
     if (
       (phase === 'first' && elapsed > run.duration / 2) ||
       (phase === 'halftime' &&
         (elapsed !== run.duration / 2 || anchor !== null)) ||
-      (phase === 'second' && elapsed < run.duration / 2) ||
+      (phase === 'second' &&
+        (elapsed < run.duration / 2 || elapsed >= run.duration)) ||
       (phase === 'fulltime' && (elapsed !== run.duration || anchor !== null))
     )
       throw new Error('Saved game phase is invalid.');
