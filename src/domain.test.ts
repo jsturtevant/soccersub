@@ -16,6 +16,7 @@ import {
   advance,
   createRun,
   startSecondHalf,
+  substitutions,
   toggleClock,
 } from './engine';
 import { exportBackup, importBackup } from './storage';
@@ -79,6 +80,21 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('pairs outgoing players with bench entrants through position moves', () => {
+    expect(
+      substitutions(['a', 'b', 'c', 'd', 'e'], ['b', 'x', 'd', 'y', 'e']),
+    ).toEqual([
+      { off: 'a', on: 'x' },
+      { off: 'c', on: 'y' },
+    ]);
+    expect(substitutions(['a', 'b', 'c', 'd'], ['b', 'c', 'x', 'd'])).toEqual([
+      { off: 'a', on: 'x' },
+    ]);
+  });
+  it('does not show substitutions for unchanged lineups or position swaps', () => {
+    expect(substitutions(['a', 'b', 'c'], ['a', 'b', 'c'])).toEqual([]);
+    expect(substitutions(['a', 'b', 'c'], ['c', 'a', 'b'])).toEqual([]);
+  });
   it('preserves an already-pending change when recovering the saved game', () => {
     const due = advance(toggleClock(run(), 1000), 951000);
     const recovered = advance(due, 961000, true);
