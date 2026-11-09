@@ -251,16 +251,11 @@ test('edits upcoming substitutions without changing actual time and can keep an 
     () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
   );
   await page.getByRole('button', { name: 'Edit next substitutions' }).click();
-  const editor = page.getByRole('group', {
-    name: 'Next lineup editor',
-    exact: true,
-  });
-  await editor
-    .getByLabel('Player in field slot 2', { exact: true })
-    .selectOption('p1');
-  await editor
-    .getByLabel('Player in field slot 3', { exact: true })
-    .selectOption('p11');
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p1');
+  await page
+    .getByRole('button', { name: 'Add substitution', exact: true })
+    .click();
+  await page.getByLabel('On player 2', { exact: true }).selectOption('p11');
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   const saved = await page.evaluate(
     () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
@@ -287,13 +282,7 @@ test('retains the next-substitution draft when saving fails', async ({
   await page.goto('/');
   await page.getByRole('button', { name: 'Resume saved game' }).click();
   await page.getByRole('button', { name: 'Edit next substitutions' }).click();
-  const editor = page.getByRole('group', {
-    name: 'Next lineup editor',
-    exact: true,
-  });
-  await editor
-    .getByLabel('Player in field slot 2', { exact: true })
-    .selectOption('p1');
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p1');
   await page.evaluate(() => {
     Storage.prototype.setItem = () => {
       throw new Error('Storage is full');
@@ -301,9 +290,9 @@ test('retains the next-substitution draft when saving fails', async ({
   });
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   await expect(page.getByRole('alert')).toContainText('Storage is full');
-  await expect(
-    editor.getByLabel('Player in field slot 2', { exact: true }),
-  ).toHaveValue('p1');
+  await expect(page.getByLabel('On player 1', { exact: true })).toHaveValue(
+    'p1',
+  );
   await expect(
     page.getByRole('button', { name: 'Save next substitutions' }),
   ).toBeVisible();
@@ -318,10 +307,7 @@ test('protects next-substitution edits when the next block advances', async ({
   await page.getByRole('button', { name: 'Resume saved game' }).click();
   await page.getByRole('button', { name: 'Resume clock' }).click();
   await page.getByRole('button', { name: 'Edit next substitutions' }).click();
-  await page
-    .getByRole('group', { name: 'Next lineup editor', exact: true })
-    .getByLabel('Player in field slot 3', { exact: true })
-    .selectOption('p11');
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p11');
   await page.clock.runFor(35_000);
   await page.getByRole('button', { name: 'Acknowledge changes' }).click();
   await expect(
@@ -797,10 +783,8 @@ test('updates estimated playing time from saved next substitutions while actual 
     .locator('strong');
   await expect(lee).toHaveText('0:00');
   await page.getByRole('button', { name: 'Edit next substitutions' }).click();
-  await page
-    .getByRole('group', { name: 'Next lineup editor', exact: true })
-    .getByLabel('Player in field slot 3', { exact: true })
-    .selectOption('p11');
+  await page.getByLabel('Off player 1', { exact: true }).selectOption('p2');
+  await page.getByLabel('On player 1', { exact: true }).selectOption('p11');
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   await expect(lee).toHaveText('0:30');
   const actual = page
@@ -869,4 +853,56 @@ test('highlights the latest incoming players through held blocks and reload', as
     .getByRole('button', { name: 'Start second half', exact: true })
     .click();
   await expect(field.locator('.recently-on')).toHaveText('BlairJust on');
+});
+
+test('edits both sides of the upcoming grid without a separate field or moving retained players', async ({
+  page,
+}) => {
+  await seed(page, heldRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await page.getByRole('button', { name: 'Edit next substitutions' }).click();
+  await expect(page.locator('.next-change .pitch')).toHaveCount(0);
+  const grid = page.getByRole('list', {
+    name: 'Upcoming substitutions',
+    exact: true,
+  });
+  await expect(grid.getByRole('listitem')).toHaveCount(1);
+  await grid.getByLabel('Off player 1', { exact: true }).selectOption('p3');
+  await grid.getByLabel('On player 1', { exact: true }).selectOption('p11');
+  expect(
+    await grid
+      .getByLabel('On player 1', { exact: true })
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => option.value)),
+  ).toEqual(['p3', 'p9', 'p10', 'p11']);
+  await page.getByRole('button', { name: 'Save next substitutions' }).click();
+  const saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+  );
+  expect(saved.blocks[1].lineup).toEqual(saved.lineup);
+  expect(saved.blocks[2].lineup).toEqual([
+    'p0',
+    'p1',
+    'p2',
+    'p11',
+    'p4',
+    'p5',
+    'p6',
+    'p7',
+    'p8',
+  ]);
+  expect(saved.events).toHaveLength(1);
+  const field = page.getByRole('group', { name: 'Live lineup', exact: true });
+  await expect(
+    field
+      .locator('.pitch-player')
+      .filter({ has: page.getByText('Drew', { exact: true }) })
+      .locator('.incoming-player'),
+  ).toHaveText('Next Lee');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });
