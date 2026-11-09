@@ -1,0 +1,21 @@
+# Install locked dependencies.
+[working-directory: '..']
+install:
+    npm ci
+
+# Run unit tests, lint, and formatting checks.
+[working-directory: '..']
+check:
+    npm test
+    npm run lint
+    npm run format:check
+
+# Build the static app; BASE_PATH selects its hosting path.
+[working-directory: '..']
+build:
+    npm run build
+
+# Run browser tests against the production app.
+[working-directory: '..']
+e2e:
+    npm run test:e2e
