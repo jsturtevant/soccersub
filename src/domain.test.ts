@@ -79,6 +79,14 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('preserves an already-pending change when recovering the saved game', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const recovered = advance(due, 961000, true);
+    expect(recovered.pendingBlock).toBe(1);
+    expect(recovered.lineup).toEqual(due.lineup);
+    expect(recovered.events).toEqual(due.events);
+    expect(recovered.notice?.missed).toBe(0);
+  });
   it('stops at halftime even after long background time and requires manual restart', () => {
     const first = toggleClock(run(), 1000);
     const half = advance(first, 9_000_000, true);
