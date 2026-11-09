@@ -1,0 +1,32 @@
+# Install locked dependencies.
+[working-directory: '..']
+install:
+    npm ci
+
+# Install browser engines and their system dependencies for CI.
+[working-directory: '..']
+browser-install:
+    npx playwright install --with-deps chromium webkit
+
+# Run unit tests, lint, and formatting checks.
+[working-directory: '..']
+check:
+    npm test
+    npm run lint
+    npm run format:check
+
+# Build the static app; BASE_PATH selects its hosting path.
+[working-directory: '..']
+build:
+    npm run build
+
+# Run browser tests against the production app.
+[working-directory: '..']
+e2e: build
+    npm run test:e2e
+
+# Check offline caching and install assets under the Pages project path.
+[working-directory: '..']
+pages-check:
+    BASE_PATH=/soccersub/ npm run build
+    E2E_BASE_PATH=/soccersub/ npm run test:e2e -- --grep PWA
