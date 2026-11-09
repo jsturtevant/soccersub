@@ -23,7 +23,9 @@ export function Pwa() {
       ) : needRefresh ? (
         <>
           <p>
-            A new version is ready. Finish the current game before updating.
+            A new version is ready. Finish the current game before updating
+            here. Your browser may update after the app closes; the saved game
+            stays on this device.
           </p>
           <button
             className="secondary"

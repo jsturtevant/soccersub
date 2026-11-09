@@ -63,4 +63,5 @@ The Pages workflow deploys `main`. Configure the repository's Pages source as
 **GitHub Actions**. To install on iPhone or iPad, use Safari's Share menu and choose
 Add to Home Screen. Other supported browsers show an Install app option.
 
-Service worker updates require confirmation and are blocked while a game is active.
+Manual in-app updates are blocked while a game is active. Browsers may activate
+an update after all app tabs close; the saved game remains available on reopening.
