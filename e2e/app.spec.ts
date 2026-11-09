@@ -56,6 +56,24 @@ async function seed(page: Page, active = false) {
   }, state);
 }
 
+test('keeps a failed player edit open and reports the storage error', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'Edit Alex', exact: true }).click();
+  await page.getByLabel('Player name').fill('Avery');
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Storage is full.', 'QuotaExceededError');
+    };
+  });
+  await page.getByRole('button', { name: 'Save player', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Storage is full.');
+  await expect(page.getByLabel('Player name')).toHaveValue('Avery');
+});
+
 test('keeps unresolved substitutions visible at halftime', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
   await seed(page, true);
