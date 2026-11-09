@@ -128,7 +128,7 @@ export function Planner({
   cancel: () => void;
   attempt: (action: () => void) => void;
 }) {
-  const [name, setName] = useState(initial?.name ?? '');
+  const [name, setName] = useState(initial?.name ?? 'Saturday rotation');
   const [formationId, setFormation] = useState(
     initial?.formationId ?? '9:3-2-3',
   );
@@ -140,11 +140,12 @@ export function Planner({
   );
   const [draft, setDraft] = useState<Template | null>(initial ?? null);
   const size = formation(formationId).size;
+  const planName = name.trim();
   const generate = () =>
     attempt(() => {
       setDraft({
         id: initial?.id ?? uid(),
-        name: name.trim() || 'Game plan',
+        name: planName || 'Saturday rotation',
         formationId,
         duration: Number(duration) * 60,
         interval: Number(interval) * 60,
@@ -172,10 +173,17 @@ export function Planner({
           <input
             value={name}
             maxLength={80}
-            placeholder="Saturday rotation"
+            required
+            aria-invalid={!planName}
+            aria-describedby={!planName ? 'plan-name-hint' : undefined}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
+        {!planName && (
+          <p className="hint warning full" id="plan-name-hint" role="status">
+            Enter a plan name before saving.
+          </p>
+        )}
         <label>
           Players per side
           <select
@@ -258,11 +266,11 @@ export function Planner({
           Cancel
         </button>
         <button
-          disabled={!draft || !name.trim() || !!dirtyTiming}
+          disabled={!draft || !planName || !!dirtyTiming}
           onClick={() =>
             attempt(() => {
               if (!draft) throw new Error('Generate your lineups first.');
-              const next = { ...draft, name: name.trim() };
+              const next = { ...draft, name: planName };
               validatePlan(next, team.players);
               save(next);
             })
