@@ -27,6 +27,29 @@ function tone() {
   oscillator.stop(audio.currentTime + 0.5);
 }
 
+export function useGameAlerts(
+  run: Run | null,
+  recovered: boolean,
+  attempt: (action: () => void) => void,
+) {
+  const lastAlert = useRef('');
+  const shouldAlert =
+    !!run &&
+    !recovered &&
+    (run.notice !== null ||
+      run.pendingBlock !== null ||
+      run.clock.phase === 'halftime' ||
+      run.clock.phase === 'fulltime');
+  const alertKey = run
+    ? `${run.id}:${run.pendingBlock}:${run.appliedBlock}:${run.notice?.missed}:${run.clock.phase}`
+    : '';
+  useEffect(() => {
+    if (!shouldAlert || lastAlert.current === alertKey) return;
+    lastAlert.current = alertKey;
+    attempt(tone);
+  }, [alertKey, attempt, shouldAlert]);
+}
+
 export function ResultForm({
   initial,
   submit,
@@ -121,8 +144,9 @@ export function Game({
   attempt: (action: () => void) => void;
 }) {
   const [editing, setEditing] = useState<string[] | null>(null);
-  const lastAlert = useRef('');
+  const [editingSecondHalf, setEditingSecondHalf] = useState(false);
   const half = run.duration / 2;
+  const unresolvedChanges = run.notice !== null || run.pendingBlock !== null;
   const phaseLabel = {
     first: 'First half',
     halftime: 'Halftime',
@@ -152,19 +176,6 @@ export function Game({
           'Unknown player',
       )
       .join(', ');
-  const alertKey = `${run.id}:${run.pendingBlock}:${run.appliedBlock}:${run.notice?.missed}:${run.clock.phase}`;
-  useEffect(() => {
-    if (recovered) return;
-    if (
-      (run.notice ||
-        run.clock.phase === 'halftime' ||
-        run.clock.phase === 'fulltime') &&
-      lastAlert.current !== alertKey
-    ) {
-      lastAlert.current = alertKey;
-      attempt(tone);
-    }
-  }, [alertKey, recovered, run.notice, run.clock.phase, attempt]);
   return (
     <section>
       <p className="eyebrow">
@@ -212,7 +223,7 @@ export function Game({
         </div>
       ) : (
         <>
-          {run.notice && run.clock.phase !== 'halftime' && (
+          {run.notice && (
             <div className="sub-alert" role="status">
               <p className="eyebrow">
                 {run.notice.missed
@@ -240,7 +251,10 @@ export function Game({
                 <button onClick={() => accept()}>Acknowledge changes</button>
                 <button
                   className="secondary"
-                  onClick={() => setEditing([...target])}
+                  onClick={() => {
+                    setEditing([...target]);
+                    setEditingSecondHalf(false);
+                  }}
                 >
                   Adjust lineup
                 </button>
@@ -257,20 +271,29 @@ export function Game({
               </p>
               <p>
                 <strong>Second-half goalkeeper:</strong>{' '}
-                {names([(editing ?? halftimeTarget)[0]])}
+                {names([
+                  (editingSecondHalf && editing ? editing : halftimeTarget)[0],
+                ])}
               </p>
               <div className="row wrap">
                 <button
                   onClick={() => {
-                    secondHalf(editing ?? halftimeTarget);
+                    secondHalf(
+                      editingSecondHalf && editing ? editing : halftimeTarget,
+                    );
                     setEditing(null);
+                    setEditingSecondHalf(false);
                   }}
+                  disabled={unresolvedChanges}
                 >
                   Start second half
                 </button>
                 <button
                   className="secondary"
-                  onClick={() => setEditing([...halftimeTarget])}
+                  onClick={() => {
+                    setEditing([...halftimeTarget]);
+                    setEditingSecondHalf(true);
+                  }}
                 >
                   Review halftime lineup
                 </button>
@@ -287,7 +310,7 @@ export function Game({
           {editing && (
             <div className="card">
               <h2>
-                {run.clock.phase === 'halftime'
+                {editingSecondHalf
                   ? 'Second-half lineup'
                   : 'Adjust actual lineup'}
               </h2>
@@ -302,22 +325,30 @@ export function Game({
               <div className="row">
                 <button
                   onClick={() => {
-                    if (run.clock.phase === 'halftime') {
+                    if (run.clock.phase === 'halftime' && editingSecondHalf) {
                       secondHalf(editing);
-                      setEditing(null);
                     } else {
                       accept(editing);
-                      setEditing(null);
                     }
+                    setEditing(null);
+                    setEditingSecondHalf(false);
                   }}
+                  disabled={
+                    run.clock.phase === 'halftime' &&
+                    editingSecondHalf &&
+                    unresolvedChanges
+                  }
                 >
-                  {run.clock.phase === 'halftime'
+                  {run.clock.phase === 'halftime' && editingSecondHalf
                     ? 'Apply and start second half'
                     : 'Apply actual lineup'}
                 </button>
                 <button
                   className="text-button"
-                  onClick={() => setEditing(null)}
+                  onClick={() => {
+                    setEditing(null);
+                    setEditingSecondHalf(false);
+                  }}
                 >
                   Cancel
                 </button>
@@ -374,7 +405,10 @@ export function Game({
             </button>
             <button
               className="text-button"
-              onClick={() => setEditing([...run.lineup])}
+              onClick={() => {
+                setEditing([...run.lineup]);
+                setEditingSecondHalf(false);
+              }}
             >
               Correct current lineup
             </button>

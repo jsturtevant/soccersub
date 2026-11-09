@@ -20,7 +20,7 @@ import {
 } from './engine';
 import { exportBackup, importBackup, STORAGE_KEY } from './storage';
 import { useStore } from './useStore';
-import { Game, enableSound, ResultForm } from './Game';
+import { Game, enableSound, ResultForm, useGameAlerts } from './Game';
 import { GameSetup, Minutes, Planner } from './Planner';
 
 type View =
@@ -623,6 +623,14 @@ export default function App() {
   const team = state.teams.find((item) => item.id === teamId);
   const template = team?.templates.find((item) => item.id === templateId);
 
+  useGameAlerts(state.active, recovered, attempt);
+  const liveAlertDue = state.active
+    ? state.active.notice !== null ||
+      state.active.pendingBlock !== null ||
+      state.active.clock.phase === 'halftime' ||
+      state.active.clock.phase === 'fulltime'
+    : false;
+
   useEffect(() => {
     const updateClock = (catchUp = false) => {
       if (recovered || blocked || !current.current.active?.clock.anchor) return;
@@ -793,6 +801,20 @@ export default function App() {
           </section>
         ) : (
           <>
+            {state.active && view !== 'game' && liveAlertDue && (
+              <div className="sub-alert" role="status">
+                <p className="eyebrow">Live game update</p>
+                <p>
+                  {state.active.notice !== null ||
+                  state.active.pendingBlock !== null
+                    ? 'A lineup change needs your attention.'
+                    : state.active.clock.phase === 'halftime'
+                      ? 'Halftime — review the second-half lineup.'
+                      : 'Full time — confirm the result.'}
+                </p>
+                <button onClick={() => navigate('game')}>Open Live game</button>
+              </div>
+            )}
             {view === 'teams' && (
               <section>
                 <div className="welcome">
