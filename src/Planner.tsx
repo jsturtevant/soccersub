@@ -140,11 +140,12 @@ export function Planner({
   );
   const [draft, setDraft] = useState<Template | null>(initial ?? null);
   const size = formation(formationId).size;
+  const planName = name.trim() || 'Game plan';
   const generate = () =>
     attempt(() => {
       setDraft({
         id: initial?.id ?? uid(),
-        name: name.trim() || 'Game plan',
+        name: planName,
         formationId,
         duration: Number(duration) * 60,
         interval: Number(interval) * 60,
@@ -172,10 +173,14 @@ export function Planner({
           <input
             value={name}
             maxLength={80}
-            placeholder="Saturday rotation"
+            placeholder="Game plan"
+            aria-describedby="plan-name-hint"
             onChange={(event) => setName(event.target.value)}
           />
         </label>
+        <p className="hint full" id="plan-name-hint">
+          Leave the name blank to save as "Game plan".
+        </p>
         <label>
           Players per side
           <select
@@ -258,11 +263,11 @@ export function Planner({
           Cancel
         </button>
         <button
-          disabled={!draft || !name.trim() || !!dirtyTiming}
+          disabled={!draft || !!dirtyTiming}
           onClick={() =>
             attempt(() => {
               if (!draft) throw new Error('Generate your lineups first.');
-              const next = { ...draft, name: name.trim() };
+              const next = { ...draft, name: planName };
               validatePlan(next, team.players);
               save(next);
             })
