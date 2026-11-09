@@ -89,7 +89,7 @@ test('previews only bench entrants and pairs due substitutions through halftime'
   await page.goto('/');
   await expect(page.locator('.incoming-player')).toHaveCount(0);
   await page.getByRole('button', { name: 'Resume saved game' }).click();
-  const field = page.getByLabel('Live lineup', { exact: true });
+  const field = page.getByRole('group', { name: 'Live lineup', exact: true });
   const replacement = field.locator('.pitch-player').filter({
     has: page.getByText('Blair', { exact: true }),
   });
@@ -173,6 +173,46 @@ test('keeps actual-lineup correction closed until needed and saves edits', async
     JSON.parse(localStorage.getItem('soccersub.v1')!),
   );
   expect(state.active.lineup[0]).toBe('p11');
+});
+
+test('refreshes untouched correction and protects edits when the live lineup changes', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const correction = page.locator('details').filter({
+    has: page.getByText('Adjust actual lineup', { exact: true }),
+  });
+  await correction.getByText('Adjust actual lineup', { exact: true }).click();
+  await page.getByRole('button', { name: 'Resume clock' }).click();
+  await page.clock.runFor(35_000);
+  await page.getByRole('button', { name: 'Acknowledge changes' }).click();
+  await expect(
+    correction.getByLabel('Player in field slot 2', { exact: true }),
+  ).toHaveValue('p2');
+  await correction
+    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
+    .selectOption('p11');
+  await page.clock.runFor(30_000);
+  await page
+    .getByRole('button', { name: 'Start second half', exact: true })
+    .click();
+  await expect(
+    correction.getByRole('button', { name: 'Apply actual lineup' }),
+  ).toBeDisabled();
+  await expect(correction.getByRole('status')).toContainText(
+    'The live lineup changed.',
+  );
+  await expect(correction.getByText('Lee', { exact: true })).toBeVisible();
+  await correction.getByRole('button', { name: 'Use current lineup' }).click();
+  await expect(
+    correction.getByLabel('Player in field slot 2', { exact: true }),
+  ).toHaveValue('p1');
+  await expect(
+    correction.getByRole('button', { name: 'Apply actual lineup' }),
+  ).toBeEnabled();
 });
 
 test('saves generated lineups with the prefilled plan name', async ({
