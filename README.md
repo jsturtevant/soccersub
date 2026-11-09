@@ -19,6 +19,11 @@ second half manually. At full time, confirm the result to save the match in hist
 Plans are reusable. A game is an independent copy, so changes during a game do not
 change the plan or earlier matches.
 
+Generated substitutions keep retained players in their field positions, except
+for the goalkeeper change at halftime. Field pickers offer only the current
+player and bench players. Regenerate existing plans to use the new rotations;
+saved plans and active games are not changed automatically.
+
 ## Your data
 
 All data stays in this browser. There is no account, server, analytics, or sync.

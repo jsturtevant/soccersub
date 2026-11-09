@@ -81,6 +81,23 @@ async function seed(page: Page, active: boolean | Run = false) {
   }, state);
 }
 
+async function selectBenchKeeper(page: Page) {
+  const select = page.getByLabel('Player in field slot 1 (goalkeeper)', {
+    exact: true,
+  });
+  const current = await select.inputValue();
+  const replacement = await select
+    .locator('option')
+    .evaluateAll(
+      (options, current) =>
+        options.find((option) => option.value !== current)?.value,
+      current,
+    );
+  if (!replacement) throw new Error('No benched goalkeeper is available.');
+  await select.selectOption(replacement);
+  return replacement;
+}
+
 test('previews only bench entrants and pairs due substitutions through halftime', async ({
   page,
 }) => {
@@ -248,9 +265,7 @@ test('saves generated lineups with the prefilled plan name', async ({
   await page
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
-  await page
-    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
-    .selectOption('p1');
+  const replacement = await selectBenchKeeper(page);
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Saturday rotation', exact: true }),
@@ -263,7 +278,7 @@ test('saves generated lineups with the prefilled plan name', async ({
   const state = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('soccersub.v1')!),
   );
-  expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe('p1');
+  expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe(replacement);
 });
 
 test('explains why a generated plan cannot be saved after clearing its name', async ({
@@ -396,9 +411,7 @@ test('edits a preset lineup and starts an independent game run', async ({
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
   await expect(page.getByLabel('Soccer field')).toBeVisible();
-  await page
-    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
-    .selectOption('p1');
+  await selectBenchKeeper(page);
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   const plan = page
     .getByRole('article')

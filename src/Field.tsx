@@ -52,11 +52,16 @@ export function Field({
                     value={lineup[slot] ?? ''}
                     onChange={(event) => onChange(slot, event.target.value)}
                   >
-                    {players.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
+                    {players
+                      .filter(
+                        (item) =>
+                          item.id === lineup[slot] || !lineup.includes(item.id),
+                      )
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
                   </select>
                 ) : (
                   <span className="player-name">
