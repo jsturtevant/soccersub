@@ -267,6 +267,40 @@ export function parseState(input: unknown): AppState {
   return state;
 }
 
+export function keepGoalkeeper<
+  T extends Pick<Template, 'formationId' | 'duration' | 'interval' | 'blocks'>,
+>(plan: T, keeper: string, from: number, until: number): T {
+  const next = structuredClone(plan);
+  for (const block of next.blocks) {
+    if (block.at < from || block.at >= until) continue;
+    const slot = block.lineup.indexOf(keeper);
+    if (slot > 0) block.lineup[slot] = block.lineup[0];
+    block.lineup[0] = keeper;
+  }
+  return next;
+}
+
+export function editBlock<
+  T extends Pick<Template, 'formationId' | 'duration' | 'interval' | 'blocks'>,
+>(plan: T, index: number, lineup: string[], players: Player[]): T {
+  if (!Number.isInteger(index) || !plan.blocks[index])
+    throw new Error('Choose a valid lineup block.');
+  validateLineup(lineup, players, plan.formationId);
+  let next = structuredClone(plan);
+  const block = next.blocks[index];
+  const keeperChanged = block.lineup[0] !== lineup[0];
+  block.lineup = [...lineup];
+  if (keeperChanged)
+    next = keepGoalkeeper(
+      next,
+      lineup[0],
+      block.at,
+      block.at < plan.duration / 2 ? plan.duration / 2 : plan.duration,
+    );
+  validatePlan(next, players);
+  return next;
+}
+
 export function plannedSeconds(
   blocks: Block[],
   total: number,

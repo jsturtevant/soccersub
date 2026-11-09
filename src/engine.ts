@@ -1,5 +1,7 @@
 import {
   uid,
+  editBlock,
+  keepGoalkeeper,
   validateLineup,
   validatePlan,
   type Player,
@@ -41,6 +43,44 @@ export function changes(from: string[], to: string[]) {
     off: from.filter((id) => !to.includes(id)),
     on: to.filter((id) => !from.includes(id)),
   };
+}
+
+export function nextBlockIndex(run: Run): number {
+  if (run.clock.phase === 'fulltime') return -1;
+  if (run.pendingBlock !== null) return run.pendingBlock;
+  return run.blocks.findIndex((block) =>
+    run.clock.phase === 'halftime'
+      ? block.at === run.duration / 2
+      : block.at > run.clock.elapsed,
+  );
+}
+
+export function editNextBlock(
+  run: Run,
+  index: number,
+  base: string[],
+  lineup: string[],
+): Run {
+  if (
+    index !== nextBlockIndex(run) ||
+    index <= run.appliedBlock ||
+    base.some((id, slot) => id !== run.blocks[index]?.lineup[slot]) ||
+    base.length !== run.blocks[index]?.lineup.length
+  )
+    throw new Error(
+      'The next block changed. Review the next planned block again.',
+    );
+  const next = editBlock(run, index, lineup, run.players);
+  if (next.pendingBlock === index) {
+    if (lineup.every((id, slot) => id === next.lineup[slot])) {
+      next.appliedBlock = index;
+      next.pendingBlock = null;
+      next.notice = null;
+    } else {
+      next.notice = { from: [...next.lineup], to: [...lineup], missed: 0 };
+    }
+  }
+  return next;
 }
 
 export function substitutions(from: string[], to: string[]) {
@@ -119,13 +159,26 @@ export function advance(run: Run, now: number, catchUp = false): Run {
 }
 
 export function acknowledge(run: Run, lineup?: string[]): Run {
-  const next = structuredClone(run);
+  let next = structuredClone(run);
   const target =
     lineup ??
     (next.pendingBlock !== null
       ? next.blocks[next.pendingBlock].lineup
       : next.lineup);
   validateLineup(target, next.players, next.formationId);
+  const plannedKeeper =
+    next.pendingBlock !== null
+      ? next.blocks[next.pendingBlock].lineup[0]
+      : next.lineup[0];
+  if (lineup && (target[0] !== next.lineup[0] || target[0] !== plannedKeeper))
+    next = keepGoalkeeper(
+      next,
+      target[0],
+      next.clock.elapsed,
+      next.clock.phase === 'first' || next.clock.phase === 'halftime'
+        ? next.duration / 2
+        : next.duration,
+    );
   record(next, next.clock.elapsed, target, lineup ? 'coach' : 'planned');
   if (next.pendingBlock !== null) next.appliedBlock = next.pendingBlock;
   next.pendingBlock = null;
@@ -136,12 +189,13 @@ export function acknowledge(run: Run, lineup?: string[]): Run {
 export function startSecondHalf(run: Run, now: number, lineup?: string[]): Run {
   if (run.clock.phase !== 'halftime')
     throw new Error('The second half can only start at halftime.');
-  const next = structuredClone(run);
+  let next = structuredClone(run);
   const index = next.blocks.findIndex(
     (block) => block.at === next.duration / 2,
   );
   const target = lineup ?? next.blocks[index].lineup;
   validateLineup(target, next.players, next.formationId);
+  if (lineup) next = editBlock(next, index, target, next.players);
   record(next, next.duration / 2, target, lineup ? 'coach' : 'planned');
   next.appliedBlock = index;
   next.pendingBlock = null;
@@ -171,5 +225,26 @@ export function actualSeconds(run: Run): Record<string, number> {
       result[id] += length;
     });
   });
+  return result;
+}
+
+export function estimatedSeconds(run: Run): Record<string, number> {
+  const result = actualSeconds(run);
+  let at = run.clock.elapsed;
+  let lineup = run.lineup;
+  const add = (length: number) => {
+    for (const id of lineup) result[id] += length;
+  };
+  const first = nextBlockIndex(run);
+  if (first >= 0) {
+    for (let index = first; index < run.blocks.length; index++) {
+      const block = run.blocks[index];
+      const nextAt = Math.max(at, block.at);
+      add(nextAt - at);
+      at = nextAt;
+      lineup = block.lineup;
+    }
+  }
+  add(run.duration - at);
   return result;
 }

@@ -1,8 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatTime, type Match, type Run } from './domain';
-import { actualSeconds, changes, substitutions } from './engine';
+import {
+  actualSeconds,
+  estimatedSeconds,
+  nextBlockIndex,
+  substitutions,
+} from './engine';
 import { Field, swapPlayer } from './Field';
 import { Minutes } from './Planner';
+
+function SubstitutionPairs({
+  pairs,
+  name,
+  label,
+}: {
+  pairs: ReturnType<typeof substitutions>;
+  name: (id: string) => string;
+  label: string;
+}) {
+  if (pairs.length === 0) return <p>No bench changes</p>;
+  return (
+    <div role="list" aria-label={label}>
+      {pairs.map(({ off, on }) => (
+        <p className="sub-pair" role="listitem" key={off}>
+          <span>
+            <span className="sub-label off">OFF</span> {name(off)}
+          </span>{' '}
+          <span className="sub-arrow" aria-hidden="true">
+            →
+          </span>{' '}
+          <span>
+            <span className="sub-label on">ON</span> {name(on)}
+          </span>
+        </p>
+      ))}
+    </div>
+  );
+}
 
 let audio: AudioContext | null = null;
 export async function enableSound() {
@@ -125,6 +159,7 @@ export function Game({
   pause,
   secondHalf,
   accept,
+  editNext,
   discard,
   complete,
   attempt,
@@ -133,8 +168,9 @@ export function Game({
   recovered: boolean;
   resumeSaved: () => void;
   pause: () => void;
-  secondHalf: (lineup: string[]) => void;
-  accept: (lineup?: string[]) => void;
+  secondHalf: (lineup: string[]) => boolean;
+  accept: (lineup?: string[]) => boolean;
+  editNext: (index: number, base: string[], lineup: string[]) => boolean;
   discard: () => void;
   complete: (
     scoreFor: number | null,
@@ -149,6 +185,11 @@ export function Game({
     lineup: string[];
   } | null>(null);
   const [editingSecondHalf, setEditingSecondHalf] = useState(false);
+  const [nextDraft, setNextDraft] = useState<{
+    index: number;
+    base: string[];
+    lineup: string[];
+  } | null>(null);
   const actualLineup =
     actualDraft &&
     actualDraft.lineup.some((id, index) => id !== actualDraft.base[index])
@@ -179,15 +220,25 @@ export function Game({
     : [];
   const halftimeTarget =
     run.blocks.find((block) => block.at === half)?.lineup ?? run.lineup;
-  const nextBlock =
-    run.pendingBlock !== null
-      ? run.blocks[run.pendingBlock]
-      : run.blocks.find((block) =>
-          run.clock.phase === 'halftime'
-            ? block.at === half
-            : block.at > run.clock.elapsed,
-        );
-  const nextDelta = nextBlock ? changes(run.lineup, nextBlock.lineup) : null;
+  const nextIndex = nextBlockIndex(run);
+  const nextBlock = run.blocks[nextIndex];
+  const staleNextDraft =
+    nextDraft !== null &&
+    (nextDraft.index !== nextIndex ||
+      nextDraft.base.some(
+        (id, slot) => id !== run.blocks[nextDraft.index]?.lineup[slot],
+      ));
+  const beginNextEdit = () => {
+    if (!nextBlock) return;
+    setNextDraft({
+      index: nextIndex,
+      base: [...nextBlock.lineup],
+      lineup: [...nextBlock.lineup],
+    });
+  };
+  const nextPairs = nextBlock
+    ? substitutions(run.lineup, nextBlock.lineup)
+    : [];
   const names = (ids: string[]) =>
     ids
       .map(
@@ -252,22 +303,11 @@ export function Game({
               </p>
               <h2>Next lineup is ready</h2>
               {dueChanges.length > 0 && (
-                <div role="list" aria-label="Substitutions">
-                  {dueChanges.map(({ off, on }) => (
-                    <p className="sub-pair" role="listitem" key={off}>
-                      <span>
-                        <span className="sub-label off">OFF</span>{' '}
-                        {names([off])}
-                      </span>{' '}
-                      <span className="sub-arrow" aria-hidden="true">
-                        →
-                      </span>{' '}
-                      <span>
-                        <span className="sub-label on">ON</span> {names([on])}
-                      </span>
-                    </p>
-                  ))}
-                </div>
+                <SubstitutionPairs
+                  pairs={dueChanges}
+                  name={(id) => names([id])}
+                  label="Substitutions"
+                />
               )}
               {run.notice.missed > 0 && (
                 <p className="hint">
@@ -306,11 +346,13 @@ export function Game({
               <div className="row wrap">
                 <button
                   onClick={() => {
-                    secondHalf(
+                    const saved = secondHalf(
                       editingSecondHalf && editing ? editing : halftimeTarget,
                     );
-                    setEditing(null);
-                    setEditingSecondHalf(false);
+                    if (saved) {
+                      setEditing(null);
+                      setEditingSecondHalf(false);
+                    }
                   }}
                   disabled={unresolvedChanges}
                 >
@@ -353,13 +395,14 @@ export function Game({
               <div className="row">
                 <button
                   onClick={() => {
-                    if (run.clock.phase === 'halftime' && editingSecondHalf) {
-                      secondHalf(editing);
-                    } else {
-                      accept(editing);
+                    const saved =
+                      run.clock.phase === 'halftime' && editingSecondHalf
+                        ? secondHalf(editing)
+                        : accept(editing);
+                    if (saved) {
+                      setEditing(null);
+                      setEditingSecondHalf(false);
                     }
-                    setEditing(null);
-                    setEditingSecondHalf(false);
                   }}
                   disabled={
                     run.clock.phase === 'halftime' &&
@@ -406,22 +449,81 @@ export function Game({
           ) || 'Everyone is on the field'}
         </p>
       </div>
+      {!recovered && nextBlock && run.clock.phase !== 'fulltime' && (
+        <div className="card next-change">
+          <span className="eyebrow">
+            Next planned block · match {formatTime(nextBlock.at)}
+          </span>
+          {nextBlock.at === half && <p>Halftime lineup</p>}
+          <SubstitutionPairs
+            pairs={nextPairs}
+            name={(id) => names([id])}
+            label="Upcoming substitutions"
+          />
+          {!nextDraft && (
+            <button className="secondary" onClick={beginNextEdit}>
+              Edit next substitutions
+            </button>
+          )}
+          {nextDraft && (
+            <>
+              <h2>Edit next substitutions</h2>
+              <p className="hint">
+                Choose a bench player, or keep a player who was due to come off.
+                The live lineup stays unchanged until this block is applied.
+              </p>
+              <Field
+                label="Next lineup editor"
+                formationId={run.formationId}
+                lineup={nextDraft.lineup}
+                players={run.players}
+                onChange={
+                  staleNextDraft
+                    ? undefined
+                    : (slot, id) =>
+                        setNextDraft({
+                          ...nextDraft,
+                          lineup: swapPlayer(nextDraft.lineup, slot, id),
+                        })
+                }
+              />
+              {staleNextDraft && (
+                <div className="warning" role="status">
+                  <p>The next block changed. Your edits are kept here.</p>
+                  <button className="secondary" onClick={beginNextEdit}>
+                    Use next planned block
+                  </button>
+                </div>
+              )}
+              <div className="row wrap">
+                <button
+                  disabled={staleNextDraft}
+                  onClick={() => {
+                    if (
+                      editNext(
+                        nextDraft.index,
+                        nextDraft.base,
+                        nextDraft.lineup,
+                      )
+                    )
+                      setNextDraft(null);
+                  }}
+                >
+                  Save next substitutions
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => setNextDraft(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {!recovered && run.clock.phase !== 'fulltime' && (
         <>
-          {nextBlock && nextDelta && (
-            <div className="card next-change">
-              <span className="eyebrow">
-                Next planned block · match {formatTime(nextBlock.at)}
-              </span>
-              <p>
-                {nextBlock.at === half
-                  ? 'Halftime lineup'
-                  : nextDelta.on.length
-                    ? `${names(nextDelta.off)} off → ${names(nextDelta.on)} on`
-                    : 'No bench changes'}
-              </p>
-            </div>
-          )}
           <div className="row wrap">
             <button
               className="secondary"
@@ -489,6 +591,14 @@ export function Game({
       <details className="card">
         <summary>Playing time so far</summary>
         <Minutes players={run.players} totals={actualSeconds(run)} />
+      </details>
+      <details className="card">
+        <summary>Estimated playing time</summary>
+        <p className="hint">
+          Expected totals at full time, using actual play so far and the
+          remaining planned lineups. Pending changes are assumed to happen now.
+        </p>
+        <Minutes players={run.players} totals={estimatedSeconds(run)} />
       </details>
       {!recovered && (
         <button className="text-button danger" onClick={discard}>

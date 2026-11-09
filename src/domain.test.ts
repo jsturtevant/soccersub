@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boundaries,
   emptyState,
+  editBlock,
   formations,
   generateBlocks,
   parseState,
@@ -15,6 +16,8 @@ import {
   actualSeconds,
   advance,
   createRun,
+  editNextBlock,
+  estimatedSeconds,
   startSecondHalf,
   substitutions,
   toggleClock,
@@ -72,6 +75,22 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('resolves future goalkeeper duplicates without moving other players', () => {
+    const original = template();
+    const next = editBlock(
+      original,
+      0,
+      ['player-9', ...original.blocks[0].lineup.slice(1)],
+      players,
+    );
+    expect(next.blocks[1].lineup).toEqual([
+      'player-9',
+      'player-0',
+      ...original.blocks[1].lineup.slice(2),
+    ]);
+    expect(next.blocks.slice(2)).toEqual(original.blocks.slice(2));
+    expect(original.blocks[0].lineup[0]).toBe('player-0');
+  });
   it('restarts intervals in each half and includes shorter final blocks', () => {
     expect(boundaries(2400, 900)).toEqual([0, 900, 1200, 2100]);
   });
@@ -192,6 +211,111 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('estimates final minutes from actual play and an overdue pending lineup', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const totals = estimatedSeconds(due);
+    expect(totals['player-1']).toBe(2150);
+    expect(totals['player-9']).toBe(1450);
+    expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
+      2400 * 9,
+    );
+  });
+  it('uses the corrected live lineup until the next future block in estimates', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const lineup = [...due.blocks[1].lineup];
+    lineup[2] = 'player-10';
+    const corrected = acknowledge(due, lineup);
+    const totals = estimatedSeconds(corrected);
+    expect(totals['player-10']).toBe(550);
+    expect(totals['player-2']).toBe(1850);
+    expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
+      2400 * 9,
+    );
+  });
+  it('includes the second-half lineup at halftime and equals actual totals at full time', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    const totals = estimatedSeconds(original);
+    expect(totals['player-1']).toBe(2400);
+    expect(totals['player-0']).toBe(1200);
+    expect(totals['player-9']).toBe(1200);
+    original.clock = { phase: 'fulltime', elapsed: 2400, anchor: null };
+    expect(estimatedSeconds(original)).toEqual(actualSeconds(original));
+  });
+  it('keeps the current goalkeeper when cancelling a pending goalkeeper change', () => {
+    const original = run();
+    original.interval = 300;
+    original.blocks = boundaries(2400, 300).map((at) => ({
+      at,
+      lineup: [...original.lineup],
+    }));
+    const planned = editNextBlock(original, 1, original.blocks[1].lineup, [
+      'player-10',
+      ...original.lineup.slice(1),
+    ]);
+    const due = advance(toggleClock(planned, 1000), 351000);
+    const kept = acknowledge(due, due.lineup);
+    expect(kept.blocks[2].lineup[0]).toBe('player-0');
+    expect(kept.blocks[3].lineup[0]).toBe('player-0');
+    expect(kept.blocks[4].lineup).toEqual(original.blocks[4].lineup);
+  });
+  it('cancels a pending substitution without changing the actual events', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const next = editNextBlock(due, 1, due.blocks[1].lineup, due.lineup);
+    expect(next.lineup).toEqual(due.lineup);
+    expect(next.events).toEqual(due.events);
+    expect(next.pendingBlock).toBeNull();
+    expect(next.notice).toBeNull();
+    expect(next.appliedBlock).toBe(1);
+  });
+  it('propagates a next-half goalkeeper edit without changing live history', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    original.appliedBlock = 1;
+    const target = ['player-10', ...original.blocks[2].lineup.slice(1)];
+    const next = editNextBlock(original, 2, original.blocks[2].lineup, target);
+    expect(next.blocks[3].lineup).toEqual([
+      'player-10',
+      'player-9',
+      'player-1',
+      ...original.blocks[3].lineup.slice(3),
+    ]);
+    expect(next.lineup).toEqual(original.lineup);
+    expect(next.events).toEqual(original.events);
+    expect(next.blocks.slice(0, 2)).toEqual(original.blocks.slice(0, 2));
+  });
+  it('rejects edits of a stale next block or changed draft base', () => {
+    const original = run();
+    const base = original.blocks[1].lineup;
+    const applied = acknowledge(advance(toggleClock(original, 1000), 951000));
+    expect(() => editNextBlock(applied, 1, base, base)).toThrow(
+      'next block changed',
+    );
+    const edited = editNextBlock(original, 1, base, original.lineup);
+    expect(() => editNextBlock(edited, 1, base, base)).toThrow(
+      'next block changed',
+    );
+  });
+  it('keeps a corrected goalkeeper for the remaining first half only', () => {
+    const original = run();
+    original.clock.elapsed = 100;
+    const corrected = acknowledge(original, [
+      'player-10',
+      ...original.lineup.slice(1),
+    ]);
+    expect(corrected.blocks[1].lineup[0]).toBe('player-10');
+    expect(corrected.blocks[0]).toEqual(original.blocks[0]);
+    expect(corrected.blocks.slice(2)).toEqual(original.blocks.slice(2));
+    expect(corrected.events[0]).toEqual(original.events[0]);
+  });
+  it('keeps an edited halftime goalkeeper through the second half', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    const target = ['player-11', ...original.blocks[2].lineup.slice(1)];
+    const restarted = startSecondHalf(original, 1000, target);
+    expect(restarted.blocks[3].lineup[0]).toBe('player-11');
+    expect(restarted.blocks.slice(0, 2)).toEqual(original.blocks.slice(0, 2));
+  });
   it('pairs outgoing players with bench entrants through position moves', () => {
     expect(
       substitutions(['a', 'b', 'c', 'd', 'e'], ['b', 'x', 'd', 'y', 'e']),

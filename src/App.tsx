@@ -16,6 +16,7 @@ import {
   actualSeconds,
   advance,
   createRun,
+  editNextBlock,
   startSecondHalf,
   toggleClock,
 } from './engine';
@@ -713,13 +714,17 @@ export default function App() {
     action: (
       run: NonNullable<AppState['active']>,
     ) => NonNullable<AppState['active']>,
-  ) =>
-    attempt(() =>
+  ) => {
+    let saved = false;
+    attempt(() => {
       commit((previous) => {
         if (!previous.active) throw new Error('No active game was found.');
         return { ...previous, active: action(previous.active) };
-      }),
-    );
+      });
+      saved = true;
+    });
+    return saved;
+  };
   const discard = () => {
     if (confirm('Discard this unfinished game? It will not appear in history.'))
       attempt(() => {
@@ -1055,6 +1060,16 @@ export default function App() {
                 accept={(lineup) =>
                   mutateRun((run) =>
                     acknowledge(advance(run, Date.now()), lineup),
+                  )
+                }
+                editNext={(index, base, lineup) =>
+                  mutateRun((run) =>
+                    editNextBlock(
+                      advance(run, Date.now()),
+                      index,
+                      base,
+                      lineup,
+                    ),
                   )
                 }
                 discard={discard}
