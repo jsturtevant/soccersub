@@ -56,6 +56,42 @@ async function seed(page: Page, active = false) {
   }, state);
 }
 
+for (const name of ['', '   ']) {
+  test(`saves a generated plan with a ${name ? 'whitespace' : 'blank'} name`, async ({
+    page,
+  }) => {
+    await seed(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: /Riverside U12/ }).click();
+    await page.getByRole('button', { name: 'New plan', exact: true }).click();
+    await page.getByLabel('Plan name').fill(name);
+    await page.getByLabel('Total game minutes').fill('2');
+    await page.getByLabel('Rotation every').fill('0.5');
+    await page
+      .getByRole('button', { name: 'Generate lineups', exact: true })
+      .click();
+    await page
+      .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
+      .selectOption('p1');
+    await expect(
+      page.getByRole('button', { name: 'Save plan', exact: true }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Game plan', exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: /Riverside U12/ }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Game plan', exact: true }),
+    ).toBeVisible();
+    const state = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('soccersub.v1')!),
+    );
+    expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe('p1');
+  });
+}
+
 test('keeps a failed player edit open and reports the storage error', async ({
   page,
 }) => {
