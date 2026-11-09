@@ -118,6 +118,36 @@ describe('lineup planning', () => {
       300,
     );
   });
+  it('gives every player a turn in each half when two blocks can cover the squad', () => {
+    for (const item of formations) {
+      const blocks = generateBlocks(players, item.id, 2400, 900);
+      for (const start of [0, 1200]) {
+        const played = new Set(
+          blocks
+            .filter((block) => block.at >= start && block.at < start + 1200)
+            .flatMap((block) => block.lineup),
+        );
+        expect(
+          players.filter((player) => !played.has(player.id)),
+          `${item.id}, half starting ${start}`,
+        ).toEqual([]);
+      }
+    }
+  });
+  it('never benches a player for consecutive blocks when the squad fits that goal', () => {
+    for (const item of formations) {
+      const blocks = generateBlocks(players, item.id, 3600, 300);
+      for (let index = 1; index < blocks.length; index++)
+        expect(
+          players.filter(
+            (player) =>
+              !blocks[index - 1].lineup.includes(player.id) &&
+              !blocks[index].lineup.includes(player.id),
+          ),
+          `${item.id}, block ${index}`,
+        ).toEqual([]);
+    }
+  });
   it('limits each generated change to at most three incoming substitutes', () => {
     const squad: Player[] = Array.from({ length: 18 }, (_, index) => ({
       id: `squad-${index}`,
