@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatTime, type Match, type Run } from './domain';
+import {
+  formatTime,
+  validateLineup,
+  type Match,
+  type Player,
+  type Run,
+} from './domain';
 import {
   actualSeconds,
   estimatedSeconds,
@@ -14,25 +20,93 @@ function SubstitutionPairs({
   pairs,
   name,
   label,
+  editor,
 }: {
   pairs: ReturnType<typeof substitutions>;
   name: (id: string) => string;
   label: string;
+  editor?: {
+    players: Player[];
+    from: string[];
+    lineup: string[];
+    disabled: boolean;
+    change: (index: number, side: 'off' | 'on', id: string) => void;
+  };
 }) {
   if (pairs.length === 0) return <p>No bench changes</p>;
   return (
     <div role="list" aria-label={label}>
-      {pairs.map(({ off, on }) => (
-        <p className="sub-pair" role="listitem" key={off}>
-          <span>
-            <span className="sub-label off">OFF</span> {name(off)}
-          </span>{' '}
+      {pairs.map(({ off, on }, index) => (
+        <p className="sub-pair" role="listitem" key={index}>
+          {editor ? (
+            <label>
+              <span className="sub-label off">OFF</span>
+              <select
+                aria-label={`Off player ${index + 1}`}
+                value={off}
+                disabled={editor.disabled}
+                onChange={(event) =>
+                  editor.change(index, 'off', event.target.value)
+                }
+              >
+                {editor.players
+                  .filter(
+                    (player) =>
+                      player.id === off ||
+                      (editor.from.includes(player.id) &&
+                        editor.lineup.includes(player.id) &&
+                        !pairs.some(
+                          (pair, row) =>
+                            row !== index && pair.off === player.id,
+                        )),
+                  )
+                  .map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : (
+            <span>
+              <span className="sub-label off">OFF</span> {name(off)}
+            </span>
+          )}{' '}
           <span className="sub-arrow" aria-hidden="true">
             →
           </span>{' '}
-          <span>
-            <span className="sub-label on">ON</span> {name(on)}
-          </span>
+          {editor ? (
+            <label>
+              <span className="sub-label on">ON</span>
+              <select
+                aria-label={`On player ${index + 1}`}
+                value={on}
+                disabled={editor.disabled}
+                onChange={(event) =>
+                  editor.change(index, 'on', event.target.value)
+                }
+              >
+                <option value={off}>Keep {name(off)} on</option>
+                {editor.players
+                  .filter(
+                    (player) =>
+                      player.id !== off &&
+                      (player.id === on ||
+                        (!editor.from.includes(player.id) &&
+                          !editor.lineup.includes(player.id))),
+                  )
+                  .map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : (
+            <span>
+              <span className="sub-label on">ON</span> {name(on)}
+            </span>
+          )}
         </p>
       ))}
     </div>
@@ -171,7 +245,12 @@ export function Game({
   pause: () => void;
   secondHalf: (lineup: string[]) => boolean;
   accept: (lineup?: string[]) => boolean;
-  editNext: (index: number, base: string[], lineup: string[]) => boolean;
+  editNext: (
+    index: number,
+    base: string[],
+    lineup: string[],
+    from: string[],
+  ) => boolean;
   discard: () => void;
   complete: (
     scoreFor: number | null,
@@ -190,6 +269,8 @@ export function Game({
     index: number;
     base: string[];
     lineup: string[];
+    from: string[];
+    pairs: ReturnType<typeof substitutions>;
   } | null>(null);
   const actualLineup =
     actualDraft &&
@@ -228,15 +309,88 @@ export function Game({
     (nextDraft.index !== nextIndex ||
       nextDraft.base.some(
         (id, slot) => id !== run.blocks[nextDraft.index]?.lineup[slot],
-      ));
+      ) ||
+      nextDraft.from.some((id, slot) => id !== run.lineup[slot]));
   const beginNextEdit = () => {
     if (!nextBlock) return;
     setNextDraft({
       index: nextIndex,
       base: [...nextBlock.lineup],
       lineup: [...nextBlock.lineup],
+      from: [...run.lineup],
+      pairs: substitutions(run.lineup, nextBlock.lineup),
     });
   };
+  const changeNextPair = (index: number, side: 'off' | 'on', id: string) =>
+    attempt(() => {
+      if (!nextDraft || staleNextDraft)
+        throw new Error(
+          'The next block changed. Review the next planned block again.',
+        );
+      const pair = nextDraft.pairs[index];
+      const lineup = [...nextDraft.lineup];
+      const incomingSlot = pair ? lineup.indexOf(pair.on) : -1;
+      if (!pair || incomingSlot < 0)
+        throw new Error(
+          'The substitution changed. Review the next planned block again.',
+        );
+      let updated = { ...pair };
+      if (side === 'on') {
+        if (
+          id !== pair.off &&
+          id !== pair.on &&
+          (nextDraft.from.includes(id) || lineup.includes(id))
+        )
+          throw new Error(
+            'Choose a bench player, or keep the outgoing player on.',
+          );
+        lineup[incomingSlot] = id;
+        updated.on = id;
+      } else {
+        if (
+          !nextDraft.from.includes(id) ||
+          nextDraft.pairs.some(
+            (other, row) => row !== index && other.off === id,
+          )
+        )
+          throw new Error(
+            'Choose a player on the field who is not already coming off.',
+          );
+        if (pair.off === pair.on) {
+          updated = { off: id, on: id };
+        } else {
+          lineup[incomingSlot] = pair.off;
+          const outgoingSlot = lineup.indexOf(id);
+          if (outgoingSlot < 0)
+            throw new Error('Choose a player who is staying on the field.');
+          lineup[outgoingSlot] = pair.on;
+          updated.off = id;
+        }
+      }
+      validateLineup(lineup, run.players, run.formationId);
+      setNextDraft({
+        ...nextDraft,
+        lineup,
+        pairs: nextDraft.pairs.map((pair, row) =>
+          row === index ? updated : pair,
+        ),
+      });
+    });
+  const addOff = nextDraft?.from
+    .slice(1)
+    .concat(nextDraft.from[0])
+    .find(
+      (id) =>
+        nextDraft.lineup.includes(id) &&
+        !nextDraft.pairs.some((pair) => pair.off === id),
+    );
+  const addOn =
+    nextDraft &&
+    run.players.find(
+      (player) =>
+        !nextDraft.from.includes(player.id) &&
+        !nextDraft.lineup.includes(player.id),
+    );
   const nextPairs = nextBlock
     ? substitutions(run.lineup, nextBlock.lineup)
     : [];
@@ -458,9 +612,20 @@ export function Game({
           </span>
           {nextBlock.at === half && <p>Halftime lineup</p>}
           <SubstitutionPairs
-            pairs={nextPairs}
+            pairs={nextDraft?.pairs ?? nextPairs}
             name={(id) => names([id])}
             label="Upcoming substitutions"
+            editor={
+              nextDraft
+                ? {
+                    players: run.players,
+                    from: nextDraft.from,
+                    lineup: nextDraft.lineup,
+                    disabled: staleNextDraft,
+                    change: changeNextPair,
+                  }
+                : undefined
+            }
           />
           {!nextDraft && (
             <button className="secondary" onClick={beginNextEdit}>
@@ -469,26 +634,11 @@ export function Game({
           )}
           {nextDraft && (
             <>
-              <h2>Edit next substitutions</h2>
               <p className="hint">
-                Choose a bench player, or keep a player who was due to come off.
-                The live lineup stays unchanged until this block is applied.
+                Change either player in a row. Choose "Keep on" to cancel a
+                substitution. The live lineup stays unchanged until this block
+                is applied.
               </p>
-              <Field
-                label="Next lineup editor"
-                formationId={run.formationId}
-                lineup={nextDraft.lineup}
-                players={run.players}
-                onChange={
-                  staleNextDraft
-                    ? undefined
-                    : (slot, id) =>
-                        setNextDraft({
-                          ...nextDraft,
-                          lineup: swapPlayer(nextDraft.lineup, slot, id),
-                        })
-                }
-              />
               {staleNextDraft && (
                 <div className="warning" role="status">
                   <p>The next block changed. Your edits are kept here.</p>
@@ -499,6 +649,32 @@ export function Game({
               )}
               <div className="row wrap">
                 <button
+                  className="secondary"
+                  disabled={staleNextDraft || !addOff || !addOn}
+                  onClick={() =>
+                    attempt(() => {
+                      if (!addOff || !addOn)
+                        throw new Error(
+                          'No unused field and bench players are available.',
+                        );
+                      setNextDraft({
+                        ...nextDraft,
+                        lineup: swapPlayer(
+                          nextDraft.lineup,
+                          nextDraft.lineup.indexOf(addOff),
+                          addOn.id,
+                        ),
+                        pairs: [
+                          ...nextDraft.pairs,
+                          { off: addOff, on: addOn.id },
+                        ],
+                      });
+                    })
+                  }
+                >
+                  Add substitution
+                </button>
+                <button
                   disabled={staleNextDraft}
                   onClick={() => {
                     if (
@@ -506,6 +682,7 @@ export function Game({
                         nextDraft.index,
                         nextDraft.base,
                         nextDraft.lineup,
+                        nextDraft.from,
                       )
                     )
                       setNextDraft(null);

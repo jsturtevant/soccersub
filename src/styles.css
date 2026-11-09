@@ -841,6 +841,14 @@ details summary {
   font-weight: 800;
   color: var(--green);
 }
+.sub-pair select {
+  min-width: 0;
+  font-size: 0.9rem;
+  padding: 10px 6px;
+}
+.sub-pair label .sub-label {
+  align-self: flex-start;
+}
 .next-change p {
   margin: 8px 0 0;
   font-size: 0.9rem;
