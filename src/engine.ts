@@ -84,7 +84,8 @@ export function advance(run: Run, now: number, catchUp = false): Run {
   const from = [...next.lineup];
   const to = next.blocks[due].lineup;
   const delta = changes(from, to);
-  if (catchUp || missed > 1) {
+  const alreadyPending = next.pendingBlock === due && missed === 1;
+  if ((catchUp && !alreadyPending) || missed > 1) {
     for (let index = next.appliedBlock + 1; index <= due; index++) {
       // A coach correction may already have been recorded after a missed boundary.
       record(
