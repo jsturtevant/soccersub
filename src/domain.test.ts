@@ -69,6 +69,30 @@ describe('lineup planning', () => {
       300,
     );
   });
+  it('limits each generated change to at most three incoming substitutes', () => {
+    const squad: Player[] = Array.from({ length: 18 }, (_, index) => ({
+      id: `squad-${index}`,
+      name: `Player ${index}`,
+      number: '',
+      roles: index < 2 ? ['goalkeeper'] : [],
+    }));
+    for (const item of formations) {
+      const blocks = generateBlocks(squad, item.id, 3600, 300);
+      for (let index = 1; index < blocks.length; index++) {
+        const previous = blocks[index - 1].lineup;
+        expect(
+          blocks[index].lineup.filter((id) => !previous.includes(id)).length,
+          `${item.id}, block ${index}`,
+        ).toBeLessThanOrEqual(3);
+      }
+      expect(
+        Object.values(plannedSeconds(blocks, 3600, squad)).reduce(
+          (sum, value) => sum + value,
+          0,
+        ),
+      ).toBe(item.size * 3600);
+    }
+  });
   it('keeps retained players in their slots across all generated presets', () => {
     for (const item of formations) {
       for (const start of [
