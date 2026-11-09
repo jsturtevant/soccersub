@@ -876,6 +876,20 @@ footer {
   text-align: center;
   border-top: 1px solid var(--line);
 }
+.pwa-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #eaf1e5;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.pwa-banner p {
+  margin: 0;
+}
 @media (max-width: 600px) {
   .app-header {
     padding: 18px 20px;

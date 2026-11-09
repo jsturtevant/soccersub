@@ -1,5 +1,7 @@
 # Touchline
 
+[Open the app](https://jsturtevant.github.io/soccersub/)
+
 A private soccer game planner for the touchline. Manage teams, build fair rotations,
 and follow the game with a clear field view and substitution alerts.
 
@@ -56,3 +58,9 @@ BASE_PATH=/soccersub/ just build
 
 The `BASE_PATH` setting supports GitHub Pages project paths. The default `/` is for
 local development or a custom-domain root.
+
+The Pages workflow deploys `main`. Configure the repository's Pages source as
+**GitHub Actions**. To install on iPhone or iPad, use Safari's Share menu and choose
+Add to Home Screen. Other supported browsers show an Install app option.
+
+Service worker updates require confirmation and are blocked while a game is active.
