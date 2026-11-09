@@ -33,7 +33,34 @@ const template = (): Template => ({
   formationId: '9:3-2-3',
   duration: 2400,
   interval: 900,
-  blocks: generateBlocks(players, '9:3-2-3', 2400, 900),
+  blocks: [
+    { at: 0, lineup: players.slice(0, 9).map((player) => player.id) },
+    {
+      at: 900,
+      lineup: [
+        'player-0',
+        'player-9',
+        ...players.slice(2, 9).map((player) => player.id),
+      ],
+    },
+    {
+      at: 1200,
+      lineup: [
+        'player-1',
+        'player-9',
+        ...players.slice(2, 9).map((player) => player.id),
+      ],
+    },
+    {
+      at: 2100,
+      lineup: [
+        'player-1',
+        'player-9',
+        'player-10',
+        ...players.slice(3, 9).map((player) => player.id),
+      ],
+    },
+  ],
 });
 const run = () =>
   createRun(

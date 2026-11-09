@@ -295,6 +295,7 @@ export function generateBlocks(
   uniqueIds(players, 'Players');
   if (start) validateLineup(start, players, formationId);
   const minutes = Object.fromEntries(players.map((player) => [player.id, 0]));
+  const stints = Object.fromEntries(players.map((player) => [player.id, 0]));
   const preferred = players.filter((player) =>
     player.roles.includes('goalkeeper'),
   );
@@ -319,6 +320,8 @@ export function generateBlocks(
         .filter((player) => player.id !== keeper)
         .sort(
           (a, b) =>
+            Number(previous?.includes(b.id) && stints[b.id] < 2) -
+              Number(previous?.includes(a.id) && stints[a.id] < 2) ||
             minutes[a.id] - minutes[b.id] ||
             Number(previous?.includes(b.id)) -
               Number(previous?.includes(a.id)) ||
@@ -371,6 +374,7 @@ export function generateBlocks(
     const length = (times[index + 1] ?? total) - at;
     lineup.forEach((player) => {
       minutes[player] += length;
+      stints[player] = previous?.includes(player) ? stints[player] + 1 : 1;
     });
     previous = lineup;
     return { at, lineup };
