@@ -7,6 +7,7 @@ import {
   generateBlocks,
   parseState,
   plannedSeconds,
+  rotationWarnings,
   slotRoles,
   type Player,
   type Template,
@@ -148,14 +149,32 @@ describe('lineup planning', () => {
         ).toEqual([]);
     }
   });
-  it('limits each generated change to at most three incoming substitutes', () => {
+  it('covers each half in a large squad even when one-block bench waits are impossible', () => {
     const squad: Player[] = Array.from({ length: 18 }, (_, index) => ({
-      id: `squad-${index}`,
+      id: `large-${index}`,
       name: `Player ${index}`,
       number: '',
       roles: index < 2 ? ['goalkeeper'] : [],
     }));
+    const plan = {
+      duration: 3600,
+      blocks: generateBlocks(squad, '7:2-3-1', 3600, 600),
+    };
+    expect(rotationWarnings(plan, squad)).toEqual([
+      expect.stringMatching(/^Consecutive bench blocks:/),
+    ]);
+  });
+  it('keeps changes within three substitutes when the bench fits that limit', () => {
     for (const item of formations) {
+      const squad: Player[] = Array.from(
+        { length: item.size + 3 },
+        (_, index) => ({
+          id: `squad-${index}`,
+          name: `Player ${index}`,
+          number: '',
+          roles: index < 2 ? ['goalkeeper'] : [],
+        }),
+      );
       const blocks = generateBlocks(squad, item.id, 3600, 300);
       for (let index = 1; index < blocks.length; index++) {
         const previous = blocks[index - 1].lineup;
@@ -172,17 +191,18 @@ describe('lineup planning', () => {
       ).toBe(item.size * 3600);
     }
   });
-  it('keeps players on for two consecutive blocks before rotating them off', () => {
-    for (const item of formations) {
+  it('prefers two-block stints after the opening rotation when bench size permits', () => {
+    for (const item of formations.filter(
+      (item) => players.length - item.size <= Math.floor((item.size - 1) / 2),
+    )) {
       const blocks = generateBlocks(players, item.id, 3600, 300);
-      expect(blocks[1].lineup).toEqual(blocks[0].lineup);
       const stints = new Map(blocks[0].lineup.map((id) => [id, 1]));
       for (let index = 1; index < blocks.length; index++) {
         const previous = blocks[index - 1].lineup;
         const next = blocks[index].lineup;
         for (const id of previous.filter((id) => !next.includes(id))) {
           const keeperChange = blocks[index].at === 1800 && id === previous[0];
-          if (!keeperChange)
+          if (!keeperChange && index > 1)
             expect(
               stints.get(id),
               `${item.id}, block ${index}, ${id}`,
@@ -240,6 +260,35 @@ describe('lineup planning', () => {
     expect(() =>
       generateBlocks(players, '9:3-2-3', 2400, 900, Array(9).fill('player-0')),
     ).toThrow('different');
+  });
+  it('warns about impossible short halves and consecutive bench waits in edited plans', () => {
+    const short = {
+      duration: 120,
+      blocks: generateBlocks(players, '9:3-2-3', 120, 60),
+    };
+    expect(rotationWarnings(short, players)).toEqual([
+      expect.stringMatching(/^No first-half playing time:/),
+      expect.stringMatching(/^No second-half playing time:/),
+    ]);
+    const edited = template();
+    edited.blocks = edited.blocks.map((block) => ({
+      ...block,
+      lineup: [...edited.blocks[0].lineup],
+    }));
+    expect(rotationWarnings(edited, players)).toEqual([
+      'No first-half playing time: Player 9, Player 10, Player 11.',
+      'No second-half playing time: Player 9, Player 10, Player 11.',
+      'Consecutive bench blocks: Player 9, Player 10, Player 11.',
+    ]);
+    expect(
+      rotationWarnings(
+        {
+          duration: 2400,
+          blocks: generateBlocks(players, '9:3-2-3', 2400, 900),
+        },
+        players,
+      ),
+    ).toEqual([]);
   });
 });
 

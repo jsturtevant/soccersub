@@ -410,6 +410,28 @@ test('saves generated lineups with the prefilled plan name', async ({
   expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe(replacement);
 });
 
+test('warns when short halves cannot give every player a turn', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Total game minutes').fill('2');
+  await page.getByLabel('Rotation every').fill('1');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  const warning = page.getByRole('status').filter({
+    hasText: 'Rotation goals need attention',
+  });
+  await expect(warning).toContainText('No first-half playing time:');
+  await expect(warning).toContainText('No second-half playing time:');
+  await page.getByLabel('Rotation every').fill('0.5');
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await expect(warning).toHaveCount(0);
+});
+
 test('explains why a generated plan cannot be saved after clearing its name', async ({
   page,
 }) => {

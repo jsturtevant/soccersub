@@ -6,6 +6,7 @@ import {
   formatTime,
   generateBlocks,
   plannedSeconds,
+  rotationWarnings,
   uid,
   validatePlan,
   type Player,
@@ -51,6 +52,7 @@ export function LineupEditor({
     plan.blocks.find((item) => item.at === half)?.lineup[0],
   ];
   const noKeeperSwap = halfKeepers[0] === halfKeepers[1];
+  const warnings = rotationWarnings(plan, players);
   return (
     <>
       <div className="section-heading">
@@ -63,6 +65,23 @@ export function LineupEditor({
         may change at halftime. A goalkeeper edit lasts for the rest of that
         half.
       </p>
+      <p className="hint">
+        Generation aims for a turn in each half and no more than one block on
+        the bench. This can require a one-block stint or more than three
+        substitutions.
+      </p>
+      {warnings.length > 0 && (
+        <div className="warning" role="status">
+          <strong>Rotation goals need attention</strong>
+          {warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+          <p>
+            Review the lineups, use shorter blocks or reduce the squad if
+            needed.
+          </p>
+        </div>
+      )}
       <div className="block-tabs" role="group" aria-label="Lineup blocks">
         {plan.blocks.map((item, i) => (
           <button
