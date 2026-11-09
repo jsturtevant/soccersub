@@ -20,12 +20,19 @@ Plans are reusable. A game is an independent copy, so changes during a game do n
 change the plan or earlier matches.
 
 Generated substitutions keep retained players in their field positions, except
-for the goalkeeper change at halftime. Each generated change brings on at most
-three bench players. Players, including starters, stay on for at least two
-blocks before rotating off, except for the halftime goalkeeper change. Field
-pickers offer only the current
-player and bench players. Regenerate existing plans to use the new rotations;
+for the goalkeeper change at halftime. Generation prioritizes a turn for every
+player in each half and no more than one consecutive block on the bench.
+Two-block playing stints and changes of at most three players are kept where
+possible, but the participation goals take priority. Large squads or short
+halves can make these goals impossible; the block editor names players who miss
+a half or sit consecutive blocks, including after manual edits. Field pickers
+offer only the current player and bench players. Regenerate existing plans to use
+the new rotations;
 saved plans and active games are not changed automatically.
+
+In the block editor, green **Just on** labels mark arrivals from the previous
+block. Yellow **Next** labels show entrants in the next block. These markers
+update as you edit a saved plan or prepare a game.
 
 During a game, use **Edit next substitutions** to adjust the next lineup or
 keep a player who was due to come off. Change either name directly in its OFF-to-ON

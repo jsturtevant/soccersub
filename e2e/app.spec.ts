@@ -410,6 +410,96 @@ test('saves generated lineups with the prefilled plan name', async ({
   expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe(replacement);
 });
 
+for (const mode of ['saved plan', 'game setup']) {
+  test(`marks next entrants and recent arrivals while editing blocks in ${mode}`, async ({
+    page,
+  }) => {
+    await seed(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: /Riverside U12/ }).click();
+    const plan = page.getByRole('article').filter({
+      has: page.getByRole('heading', { name: 'Saturday 9v9', exact: true }),
+    });
+    await plan
+      .getByRole('button', {
+        name: mode === 'saved plan' ? 'Edit' : 'Use for game',
+        exact: true,
+      })
+      .click();
+    const field = page.getByRole('group', {
+      name: 'Soccer field',
+      exact: true,
+    });
+    await expect(field.locator('.incoming-player')).toHaveText('Next Jules');
+    await expect(field.locator('.recently-on')).toHaveCount(0);
+    await page.getByRole('button', { name: '1st · 0:30', exact: true }).click();
+    await expect(field.locator('.recently-on select')).toHaveValue('p9');
+    await expect(field.locator('.recently-on .recent-label')).toHaveText(
+      'Just on',
+    );
+    await expect(field.locator('.recently-on')).toHaveCSS(
+      'background-color',
+      'rgb(220, 239, 220)',
+    );
+    await expect(field.locator('.incoming-player')).toHaveText('Next Blair');
+    await field
+      .getByLabel('Player in field slot 3', { exact: true })
+      .selectOption('p10');
+    expect(
+      await field
+        .locator('.recently-on select')
+        .evaluateAll((selects) =>
+          selects.map((select) => (select as HTMLSelectElement).value).sort(),
+        ),
+    ).toEqual(['p10', 'p9']);
+    expect(
+      (await field.locator('.incoming-player').allTextContents()).sort(),
+    ).toEqual(['Next Blair', 'Next Casey']);
+    await page.getByRole('button', { name: /2nd · 0:00/ }).click();
+    expect(
+      await field
+        .locator('.recently-on select')
+        .evaluateAll((selects) =>
+          selects.map((select) => (select as HTMLSelectElement).value).sort(),
+        ),
+    ).toEqual(['p1', 'p2']);
+    await expect(field.locator('.incoming-player')).toHaveText('Next Kai');
+    await page.getByRole('button', { name: '2nd · 0:30', exact: true }).click();
+    await expect(field.locator('.recently-on select')).toHaveValue('p10');
+    await expect(field.locator('.incoming-player')).toHaveCount(0);
+    await page.getByRole('button', { name: '1st · 0:00', exact: true }).click();
+    await expect(field.locator('.recently-on')).toHaveCount(0);
+    await expect(field.locator('.incoming-player')).toHaveCount(2);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
+test('warns when short halves cannot give every player a turn', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Total game minutes').fill('2');
+  await page.getByLabel('Rotation every').fill('1');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  const warning = page.getByRole('status').filter({
+    hasText: 'Rotation goals need attention',
+  });
+  await expect(warning).toContainText('No first-half playing time:');
+  await expect(warning).toContainText('No second-half playing time:');
+  await page.getByLabel('Rotation every').fill('0.5');
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await expect(warning).toHaveCount(0);
+});
+
 test('explains why a generated plan cannot be saved after clearing its name', async ({
   page,
 }) => {

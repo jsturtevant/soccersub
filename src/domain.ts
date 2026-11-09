@@ -316,6 +316,43 @@ export function plannedSeconds(
   return result;
 }
 
+export function rotationWarnings(
+  plan: Pick<Template, 'duration' | 'blocks'>,
+  players: Player[],
+): string[] {
+  const warnings: string[] = [];
+  for (const [start, label] of [
+    [0, 'first'],
+    [plan.duration / 2, 'second'],
+  ] as const) {
+    const played = new Set(
+      plan.blocks
+        .filter(
+          (block) => block.at >= start && block.at < start + plan.duration / 2,
+        )
+        .flatMap((block) => block.lineup),
+    );
+    const missing = players.filter((player) => !played.has(player.id));
+    if (missing.length)
+      warnings.push(
+        `No ${label}-half playing time: ${missing.map((player) => player.name).join(', ')}.`,
+      );
+  }
+  const waiting = players.filter((player) =>
+    plan.blocks.some(
+      (block, index) =>
+        index > 0 &&
+        !block.lineup.includes(player.id) &&
+        !plan.blocks[index - 1].lineup.includes(player.id),
+    ),
+  );
+  if (waiting.length)
+    warnings.push(
+      `Consecutive bench blocks: ${waiting.map((player) => player.name).join(', ')}.`,
+    );
+  return warnings;
+}
+
 export function generateBlocks(
   players: Player[],
   formationId: string,
@@ -330,6 +367,10 @@ export function generateBlocks(
   if (start) validateLineup(start, players, formationId);
   const minutes = Object.fromEntries(players.map((player) => [player.id, 0]));
   const stints = Object.fromEntries(players.map((player) => [player.id, 0]));
+  const benchBlocks = Object.fromEntries(
+    players.map((player) => [player.id, 0]),
+  );
+  const playedThisHalf = new Set<string>();
   const preferred = players.filter((player) =>
     player.roles.includes('goalkeeper'),
   );
@@ -339,6 +380,7 @@ export function generateBlocks(
   const times = boundaries(total, step);
   let previous: string[] | undefined;
   return times.map((at, index) => {
+    if (at === total / 2) playedThisHalf.clear();
     const keeper = at < total / 2 ? firstKeeper : secondKeeper;
     const lineup =
       index === 0 && start
@@ -350,10 +392,13 @@ export function generateBlocks(
       const keeperSlot = lineup.indexOf(keeper);
       if (keeperSlot > 0) lineup[keeperSlot] = lineup[0];
       lineup[0] = keeper;
-      let candidates = players
+      const candidates = players
         .filter((player) => player.id !== keeper)
         .sort(
           (a, b) =>
+            Number(playedThisHalf.has(a.id)) -
+              Number(playedThisHalf.has(b.id)) ||
+            benchBlocks[b.id] - benchBlocks[a.id] ||
             Number(previous?.includes(b.id) && stints[b.id] < 2) -
               Number(previous?.includes(a.id) && stints[a.id] < 2) ||
             minutes[a.id] - minutes[b.id] ||
@@ -362,30 +407,6 @@ export function generateBlocks(
             a.id.localeCompare(b.id),
         )
         .slice(0, slots.length - 1);
-      const current = previous;
-      if (current) {
-        const limit = 3 - Number(!current.includes(keeper));
-        const skipped = new Set(
-          candidates
-            .filter((player) => !current.includes(player.id))
-            .slice(limit)
-            .map((player) => player.id),
-        );
-        candidates = candidates.filter((player) => !skipped.has(player.id));
-        const retained = players
-          .filter(
-            (player) =>
-              current.includes(player.id) &&
-              player.id !== keeper &&
-              !candidates.some((candidate) => candidate.id === player.id),
-          )
-          .sort(
-            (a, b) => minutes[a.id] - minutes[b.id] || a.id.localeCompare(b.id),
-          );
-        candidates.push(
-          ...retained.slice(0, slots.length - 1 - candidates.length),
-        );
-      }
       const selected = new Set(candidates.map((player) => player.id));
       const incoming = candidates.filter(
         (player) => !lineup.slice(1).includes(player.id),
@@ -409,7 +430,12 @@ export function generateBlocks(
     lineup.forEach((player) => {
       minutes[player] += length;
       stints[player] = previous?.includes(player) ? stints[player] + 1 : 1;
+      playedThisHalf.add(player);
     });
+    for (const player of players)
+      benchBlocks[player.id] = lineup.includes(player.id)
+        ? 0
+        : benchBlocks[player.id] + 1;
     previous = lineup;
     return { at, lineup };
   });
