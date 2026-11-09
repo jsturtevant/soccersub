@@ -227,3 +227,24 @@ export function actualSeconds(run: Run): Record<string, number> {
   });
   return result;
 }
+
+export function estimatedSeconds(run: Run): Record<string, number> {
+  const result = actualSeconds(run);
+  let at = run.clock.elapsed;
+  let lineup = run.lineup;
+  const add = (length: number) => {
+    for (const id of lineup) result[id] += length;
+  };
+  const first = nextBlockIndex(run);
+  if (first >= 0) {
+    for (let index = first; index < run.blocks.length; index++) {
+      const block = run.blocks[index];
+      const nextAt = Math.max(at, block.at);
+      add(nextAt - at);
+      at = nextAt;
+      lineup = block.lineup;
+    }
+  }
+  add(run.duration - at);
+  return result;
+}

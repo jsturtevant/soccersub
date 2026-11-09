@@ -27,6 +27,15 @@ pickers offer only the current
 player and bench players. Regenerate existing plans to use the new rotations;
 saved plans and active games are not changed automatically.
 
+During a game, use **Edit next substitutions** to adjust the next lineup or
+keep a player who was due to come off. The live lineup changes only when applied.
+Goalkeeper edits carry through the rest of that half. Upcoming changes use the
+same OFF-to-ON pairs as ready alerts.
+
+**Estimated playing time** shows expected totals at full time from actual play
+and the remaining lineups. It updates after plan edits and assumes pending
+changes happen now. **Playing time so far** remains the actual recorded time.
+
 ## Your data
 
 All data stays in this browser. There is no account, server, analytics, or sync.

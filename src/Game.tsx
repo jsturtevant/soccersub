@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatTime, type Match, type Run } from './domain';
-import { actualSeconds, nextBlockIndex, substitutions } from './engine';
+import {
+  actualSeconds,
+  estimatedSeconds,
+  nextBlockIndex,
+  substitutions,
+} from './engine';
 import { Field, swapPlayer } from './Field';
 import { Minutes } from './Planner';
 
@@ -586,6 +591,14 @@ export function Game({
       <details className="card">
         <summary>Playing time so far</summary>
         <Minutes players={run.players} totals={actualSeconds(run)} />
+      </details>
+      <details className="card">
+        <summary>Estimated playing time</summary>
+        <p className="hint">
+          Expected totals at full time, using actual play so far and the
+          remaining planned lineups. Pending changes are assumed to happen now.
+        </p>
+        <Minutes players={run.players} totals={estimatedSeconds(run)} />
       </details>
       {!recovered && (
         <button className="text-button danger" onClick={discard}>
