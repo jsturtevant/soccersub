@@ -19,6 +19,11 @@ second half manually. At full time, confirm the result to save the match in hist
 Plans are reusable. A game is an independent copy, so changes during a game do not
 change the plan or earlier matches.
 
+Generated substitutions keep retained players in their field positions, except
+for the goalkeeper change at halftime. Field pickers offer only the current
+player and bench players. Regenerate existing plans to use the new rotations;
+saved plans and active games are not changed automatically.
+
 ## Your data
 
 All data stays in this browser. There is no account, server, analytics, or sync.
@@ -33,6 +38,10 @@ current lineup if they did not happen. The app cannot send background alerts.
 Import validates a backup and shows a preview before replacing saved data. End or
 discard an active game before importing. Use one editing tab at a time; other tabs
 stop editing when saved data changes.
+
+Your data also has a confirmed **Delete all data** action. It removes all saved
+records, including an unfinished game, but keeps the app installed and usable
+offline.
 
 ## Development
 
@@ -62,6 +71,9 @@ local development or a custom-domain root.
 The Pages workflow deploys `main`. Configure the repository's Pages source as
 **GitHub Actions**. To install on iPhone or iPad, use Safari's Share menu and choose
 Add to Home Screen. Other supported browsers show an Install app option.
+When the browser offers installation, the app also shows an **Install app**
+button. Browsers without this prompt still use their own installation menus.
 
 Manual in-app updates are blocked while a game is active. Browsers may activate
 an update after all app tabs close; the saved game remains available on reopening.
+Available updates appear in a pale-red banner at the top of every screen.

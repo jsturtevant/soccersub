@@ -302,33 +302,53 @@ export function generateBlocks(
   const secondKeeper =
     preferred.find((player) => player.id !== firstKeeper)?.id ?? firstKeeper;
   const times = boundaries(total, step);
+  let previous: string[] | undefined;
   return times.map((at, index) => {
     const keeper = at < total / 2 ? firstKeeper : secondKeeper;
-    const lineup = index === 0 && start ? [...start] : [keeper];
+    const lineup =
+      index === 0 && start
+        ? [...start]
+        : previous
+          ? [...previous]
+          : Array<string>(slots.length).fill('');
     if (!(index === 0 && start)) {
+      const keeperSlot = lineup.indexOf(keeper);
+      if (keeperSlot > 0) lineup[keeperSlot] = lineup[0];
+      lineup[0] = keeper;
       const candidates = players
         .filter((player) => player.id !== keeper)
         .sort(
-          (a, b) => minutes[a.id] - minutes[b.id] || a.id.localeCompare(b.id),
+          (a, b) =>
+            minutes[a.id] - minutes[b.id] ||
+            Number(previous?.includes(b.id)) -
+              Number(previous?.includes(a.id)) ||
+            a.id.localeCompare(b.id),
         )
         .slice(0, slots.length - 1);
-      for (const role of slots.slice(1)) {
-        candidates.sort(
+      const selected = new Set(candidates.map((player) => player.id));
+      const incoming = candidates.filter(
+        (player) => !lineup.slice(1).includes(player.id),
+      );
+      for (let slot = 1; slot < slots.length; slot++) {
+        if (selected.has(lineup[slot])) continue;
+        incoming.sort(
           (a, b) =>
-            Number(b.roles.includes(role)) - Number(a.roles.includes(role)) ||
+            Number(b.roles.includes(slots[slot])) -
+              Number(a.roles.includes(slots[slot])) ||
             minutes[a.id] - minutes[b.id] ||
             a.id.localeCompare(b.id),
         );
-        const next = candidates.shift();
+        const next = incoming.shift();
         if (!next)
           throw new Error('Not enough players to fill this formation.');
-        lineup.push(next.id);
+        lineup[slot] = next.id;
       }
     }
     const length = (times[index + 1] ?? total) - at;
     lineup.forEach((player) => {
       minutes[player] += length;
     });
+    previous = lineup;
     return { at, lineup };
   });
 }

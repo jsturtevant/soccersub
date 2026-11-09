@@ -57,8 +57,9 @@ export function LineupEditor({
         <span className="badge">{formation(plan.formationId).layout}</span>
       </div>
       <p className="hint">
-        Choose a block, then tap a player on the field. Choosing an on-field
-        player swaps their positions.
+        Choose a block, then tap a player on the field to select a substitute
+        from the bench. Players who stay on keep their positions. Goalkeepers
+        may change at halftime.
       </p>
       <div className="block-tabs" role="group" aria-label="Lineup blocks">
         {plan.blocks.map((item, i) => (

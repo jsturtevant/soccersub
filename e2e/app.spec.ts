@@ -81,6 +81,23 @@ async function seed(page: Page, active: boolean | Run = false) {
   }, state);
 }
 
+async function selectBenchKeeper(page: Page) {
+  const select = page.getByLabel('Player in field slot 1 (goalkeeper)', {
+    exact: true,
+  });
+  const current = await select.inputValue();
+  const replacement = await select
+    .locator('option')
+    .evaluateAll(
+      (options, current) =>
+        options.find((option) => option.value !== current)?.value,
+      current,
+    );
+  if (!replacement) throw new Error('No benched goalkeeper is available.');
+  await select.selectOption(replacement);
+  return replacement;
+}
+
 test('previews only bench entrants and pairs due substitutions through halftime', async ({
   page,
 }) => {
@@ -175,6 +192,26 @@ test('keeps actual-lineup correction closed until needed and saves edits', async
   expect(state.active.lineup[0]).toBe('p11');
 });
 
+test('offers only the current player and bench players in every editable field slot', async ({
+  page,
+}) => {
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  const correction = page.locator('details').filter({
+    has: page.getByText('Adjust actual lineup', { exact: true }),
+  });
+  await correction.getByText('Adjust actual lineup', { exact: true }).click();
+  const options = await correction.locator('select').evaluateAll((selects) =>
+    selects.map((select) => ({
+      current: select.value,
+      options: [...select.options].map((option) => option.value),
+    })),
+  );
+  for (const slot of options)
+    expect(slot.options).toEqual([slot.current, 'p9', 'p10', 'p11']);
+});
+
 test('refreshes untouched correction and protects edits when the live lineup changes', async ({
   page,
 }) => {
@@ -228,9 +265,7 @@ test('saves generated lineups with the prefilled plan name', async ({
   await page
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
-  await page
-    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
-    .selectOption('p1');
+  const replacement = await selectBenchKeeper(page);
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Saturday rotation', exact: true }),
@@ -243,7 +278,7 @@ test('saves generated lineups with the prefilled plan name', async ({
   const state = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('soccersub.v1')!),
   );
-  expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe('p1');
+  expect(state.teams[0].templates[1].blocks[0].lineup[0]).toBe(replacement);
 });
 
 test('explains why a generated plan cannot be saved after clearing its name', async ({
@@ -376,9 +411,7 @@ test('edits a preset lineup and starts an independent game run', async ({
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
   await expect(page.getByLabel('Soccer field')).toBeVisible();
-  await page
-    .getByLabel('Player in field slot 1 (goalkeeper)', { exact: true })
-    .selectOption('p1');
+  await selectBenchKeeper(page);
   await page.getByRole('button', { name: 'Save plan', exact: true }).click();
   const plan = page
     .getByRole('article')
@@ -465,5 +498,66 @@ test('rejects bad imports without replacing data and requires preview confirmati
   await page.getByRole('button', { name: 'Teams & plans' }).click();
   await expect(page.getByRole('button', { name: /Riverside U12/ })).toHaveCount(
     0,
+  );
+});
+
+test('requires confirmation to delete all app data including an unfinished game', async ({
+  page,
+}) => {
+  await seed(page, previewRun());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  const before = await page.evaluate(() =>
+    localStorage.getItem('soccersub.v1'),
+  );
+  page.once('dialog', async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toContain('unfinished game');
+    await dialog.dismiss();
+  });
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  expect(await page.evaluate(() => localStorage.getItem('soccersub.v1'))).toBe(
+    before,
+  );
+  page.once('dialog', (dialog) => dialog.accept());
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('soccersub.v1')!),
+    ),
+  ).toEqual(emptyState());
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Live game' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Teams & plans' }).click();
+  await expect(page.getByRole('button', { name: /Riverside U12/ })).toHaveCount(
+    0,
+  );
+});
+
+test('preserves data and reports a failed delete', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  const before = await page.evaluate(() =>
+    localStorage.getItem('soccersub.v1'),
+  );
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Storage is unavailable.', 'SecurityError');
+    };
+  });
+  page.once('dialog', (dialog) => dialog.accept());
+  await page
+    .getByRole('button', { name: 'Delete all data', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Storage is unavailable.',
+  );
+  expect(await page.evaluate(() => localStorage.getItem('soccersub.v1'))).toBe(
+    before,
   );
 });

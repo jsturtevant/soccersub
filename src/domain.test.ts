@@ -69,6 +69,45 @@ describe('lineup planning', () => {
       300,
     );
   });
+  it('keeps retained players in their slots across all generated presets', () => {
+    for (const item of formations) {
+      for (const start of [
+        undefined,
+        players
+          .slice(0, item.size)
+          .map((player) => player.id)
+          .reverse(),
+      ]) {
+        const blocks = generateBlocks(players, item.id, 2400, 300, start);
+        for (let index = 1; index < blocks.length; index++) {
+          const previous = blocks[index - 1].lineup;
+          const next = blocks[index].lineup;
+          previous.forEach((id, slot) => {
+            const keeperChange =
+              blocks[index].at === 1200 &&
+              (id === previous[0] || id === next[0]);
+            if (next.includes(id) && !keeperChange)
+              expect(
+                next.indexOf(id),
+                `${item.id}, block ${index}, ${id}`,
+              ).toBe(slot);
+          });
+        }
+      }
+    }
+  });
+  it('makes no outfield position changes when there is no bench', () => {
+    const squad = players.slice(0, 9);
+    const blocks = generateBlocks(squad, '9:3-2-3', 2400, 300);
+    const start = blocks[0].lineup;
+    for (const block of blocks.filter((block) => block.at < 1200))
+      expect(block.lineup).toEqual(start);
+    const halftime = [...start];
+    const keeperSlot = start.indexOf('player-1');
+    [halftime[0], halftime[keeperSlot]] = [halftime[keeperSlot], halftime[0]];
+    for (const block of blocks.filter((block) => block.at >= 1200))
+      expect(block.lineup).toEqual(halftime);
+  });
   it('rejects incomplete squads and duplicate starting players', () => {
     expect(() =>
       generateBlocks(players.slice(0, 8), '9:3-2-3', 2400, 900),
