@@ -17,6 +17,7 @@ import {
   advance,
   createRun,
   editNextBlock,
+  estimatedSeconds,
   startSecondHalf,
   substitutions,
   toggleClock,
@@ -210,6 +211,37 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('estimates final minutes from actual play and an overdue pending lineup', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const totals = estimatedSeconds(due);
+    expect(totals['player-1']).toBe(2150);
+    expect(totals['player-9']).toBe(1450);
+    expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
+      2400 * 9,
+    );
+  });
+  it('uses the corrected live lineup until the next future block in estimates', () => {
+    const due = advance(toggleClock(run(), 1000), 951000);
+    const lineup = [...due.blocks[1].lineup];
+    lineup[2] = 'player-10';
+    const corrected = acknowledge(due, lineup);
+    const totals = estimatedSeconds(corrected);
+    expect(totals['player-10']).toBe(550);
+    expect(totals['player-2']).toBe(1850);
+    expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
+      2400 * 9,
+    );
+  });
+  it('includes the second-half lineup at halftime and equals actual totals at full time', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    const totals = estimatedSeconds(original);
+    expect(totals['player-1']).toBe(2400);
+    expect(totals['player-0']).toBe(1200);
+    expect(totals['player-9']).toBe(1200);
+    original.clock = { phase: 'fulltime', elapsed: 2400, anchor: null };
+    expect(estimatedSeconds(original)).toEqual(actualSeconds(original));
+  });
   it('keeps the current goalkeeper when cancelling a pending goalkeeper change', () => {
     const original = run();
     original.interval = 300;

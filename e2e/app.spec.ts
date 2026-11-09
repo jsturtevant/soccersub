@@ -751,3 +751,44 @@ test('shows the upcoming substitutions in the same paired rows as ready changes'
     .click();
   await expect(page.locator('.next-change')).toContainText('No bench changes');
 });
+
+test('updates estimated playing time from saved next substitutions while actual time stays unchanged', async ({
+  page,
+}) => {
+  await seed(page, true);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await expect(
+    page.getByText('Estimated playing time', { exact: true }),
+  ).toBeVisible();
+  const estimate = page
+    .locator('details')
+    .filter({ has: page.getByText('Estimated playing time', { exact: true }) });
+  await estimate.locator('summary').click();
+  const lee = estimate
+    .locator('.minutes > div')
+    .filter({ has: page.getByText('Lee', { exact: true }) })
+    .locator('strong');
+  await expect(lee).toHaveText('0:00');
+  await page.getByRole('button', { name: 'Edit next substitutions' }).click();
+  await page
+    .getByRole('group', { name: 'Next lineup editor', exact: true })
+    .getByLabel('Player in field slot 3', { exact: true })
+    .selectOption('p11');
+  await page.getByRole('button', { name: 'Save next substitutions' }).click();
+  await expect(lee).toHaveText('0:30');
+  const actual = page
+    .locator('details')
+    .filter({ has: page.getByText('Playing time so far', { exact: true }) });
+  await actual.locator('summary').click();
+  await expect(
+    actual
+      .locator('.minutes > div')
+      .filter({ has: page.getByText('Lee', { exact: true }) })
+      .locator('strong'),
+  ).toHaveText('0:00');
+  await page.reload();
+  await page.getByRole('button', { name: 'Resume saved game' }).click();
+  await estimate.locator('summary').click();
+  await expect(lee).toHaveText('0:30');
+});
