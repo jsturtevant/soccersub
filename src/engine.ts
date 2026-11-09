@@ -166,7 +166,11 @@ export function acknowledge(run: Run, lineup?: string[]): Run {
       ? next.blocks[next.pendingBlock].lineup
       : next.lineup);
   validateLineup(target, next.players, next.formationId);
-  if (lineup && target[0] !== next.lineup[0])
+  const plannedKeeper =
+    next.pendingBlock !== null
+      ? next.blocks[next.pendingBlock].lineup[0]
+      : next.lineup[0];
+  if (lineup && (target[0] !== next.lineup[0] || target[0] !== plannedKeeper))
     next = keepGoalkeeper(
       next,
       target[0],
