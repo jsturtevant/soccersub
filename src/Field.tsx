@@ -1,14 +1,25 @@
 import { formation, type Player } from './domain';
+import { substitutions } from './engine';
 
 type Props = {
   formationId: string;
   lineup: string[];
   players: Player[];
+  nextLineup?: string[];
+  label?: string;
   onChange?: (slot: number, player: string) => void;
 };
 
-export function Field({ formationId, lineup, players, onChange }: Props) {
+export function Field({
+  formationId,
+  lineup,
+  players,
+  nextLineup,
+  label = 'Soccer field',
+  onChange,
+}: Props) {
   const { rows } = formation(formationId);
+  const upcoming = nextLineup ? substitutions(lineup, nextLineup) : [];
   let index = 1;
   const fieldRows = rows
     .map((count) => {
@@ -18,7 +29,7 @@ export function Field({ formationId, lineup, players, onChange }: Props) {
     .reverse();
   fieldRows.push([0]);
   return (
-    <div className="pitch" aria-label="Soccer field">
+    <div className="pitch" role="group" aria-label={label}>
       <div className="pitch-center" aria-hidden="true" />
       <div className="pitch-box top" aria-hidden="true" />
       <div className="pitch-box bottom" aria-hidden="true" />
@@ -26,6 +37,10 @@ export function Field({ formationId, lineup, players, onChange }: Props) {
         <div className="pitch-row" key={row}>
           {slots.map((slot) => {
             const player = players.find((item) => item.id === lineup[slot]);
+            const incomingId = upcoming.find(
+              (change) => change.off === lineup[slot],
+            )?.on;
+            const incoming = players.find((item) => item.id === incomingId);
             return (
               <div className="pitch-player" key={slot}>
                 <span className="shirt" aria-hidden="true">
@@ -46,6 +61,11 @@ export function Field({ formationId, lineup, players, onChange }: Props) {
                 ) : (
                   <span className="player-name">
                     {player?.name ?? 'Unassigned'}
+                  </span>
+                )}
+                {incoming && (
+                  <span className="incoming-player">
+                    <span className="incoming-label">Next</span> {incoming.name}
                   </span>
                 )}
               </div>

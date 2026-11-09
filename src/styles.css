@@ -645,6 +645,11 @@ legend {
   flex: 1;
   max-width: 32%;
 }
+.pitch:has(.incoming-player) {
+  aspect-ratio: auto;
+  min-height: min(690px, 125vw);
+  gap: 18px;
+}
 .shirt {
   display: grid;
   place-items: center;
@@ -683,7 +688,8 @@ legend {
   width: 100%;
   text-overflow: ellipsis;
 }
-.player-name {
+.player-name,
+.incoming-player {
   color: white;
   background: #205f40e6;
   border-radius: 6px;
@@ -694,6 +700,14 @@ legend {
   width: 100%;
   overflow-wrap: anywhere;
   line-height: 1.3;
+}
+.incoming-player {
+  color: #5b390b;
+  background: #ffedb3;
+}
+.incoming-label {
+  font-size: 0.65rem;
+  font-weight: 800;
 }
 .bench {
   text-align: center;
@@ -805,6 +819,18 @@ details summary {
 .sub-label.on {
   background: #cce8c6;
   color: #31662f;
+}
+.sub-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.sub-arrow {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--green);
 }
 .next-change p {
   margin: 8px 0 0;

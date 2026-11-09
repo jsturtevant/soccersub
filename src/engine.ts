@@ -43,6 +43,15 @@ export function changes(from: string[], to: string[]) {
   };
 }
 
+export function substitutions(from: string[], to: string[]) {
+  return changes(from, to).off.map((off) => {
+    let on = to[from.indexOf(off)];
+    // Follow position moves to the bench player replacing each outgoing player.
+    while (from.includes(on)) on = to[from.indexOf(on)];
+    return { off, on };
+  });
+}
+
 function record(
   run: Run,
   at: number,

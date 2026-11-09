@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatTime, type Match, type Run } from './domain';
-import { actualSeconds, changes } from './engine';
+import { actualSeconds, changes, substitutions } from './engine';
 import { Field, swapPlayer } from './Field';
 import { Minutes } from './Planner';
 
@@ -144,7 +144,20 @@ export function Game({
   attempt: (action: () => void) => void;
 }) {
   const [editing, setEditing] = useState<string[] | null>(null);
+  const [actualDraft, setActualDraft] = useState<{
+    base: string[];
+    lineup: string[];
+  } | null>(null);
   const [editingSecondHalf, setEditingSecondHalf] = useState(false);
+  const actualLineup =
+    actualDraft &&
+    actualDraft.lineup.some((id, index) => id !== actualDraft.base[index])
+      ? actualDraft.lineup
+      : run.lineup;
+  const staleActualDraft =
+    actualDraft !== null &&
+    actualDraft.base.some((id, index) => id !== run.lineup[index]) &&
+    actualLineup.some((id, index) => id !== run.lineup[index]);
   const half = run.duration / 2;
   const unresolvedChanges = run.notice !== null || run.pendingBlock !== null;
   const phaseLabel = {
@@ -161,12 +174,19 @@ export function Game({
     run.pendingBlock !== null
       ? run.blocks[run.pendingBlock].lineup
       : run.lineup;
-  const delta = run.notice
-    ? changes(run.notice.from, run.notice.to)
-    : { on: [], off: [] };
+  const dueChanges = run.notice
+    ? substitutions(run.notice.from, run.notice.to)
+    : [];
   const halftimeTarget =
     run.blocks.find((block) => block.at === half)?.lineup ?? run.lineup;
-  const nextBlock = run.blocks.find((block) => block.at > run.clock.elapsed);
+  const nextBlock =
+    run.pendingBlock !== null
+      ? run.blocks[run.pendingBlock]
+      : run.blocks.find((block) =>
+          run.clock.phase === 'halftime'
+            ? block.at === half
+            : block.at > run.clock.elapsed,
+        );
   const nextDelta = nextBlock ? changes(run.lineup, nextBlock.lineup) : null;
   const names = (ids: string[]) =>
     ids
@@ -231,15 +251,23 @@ export function Game({
                   : 'Time to substitute'}
               </p>
               <h2>Next lineup is ready</h2>
-              {delta.off.length > 0 && (
-                <p>
-                  <span className="sub-label off">OFF</span> {names(delta.off)}
-                </p>
-              )}
-              {delta.on.length > 0 && (
-                <p>
-                  <span className="sub-label on">ON</span> {names(delta.on)}
-                </p>
+              {dueChanges.length > 0 && (
+                <div role="list" aria-label="Substitutions">
+                  {dueChanges.map(({ off, on }) => (
+                    <p className="sub-pair" role="listitem" key={off}>
+                      <span>
+                        <span className="sub-label off">OFF</span>{' '}
+                        {names([off])}
+                      </span>{' '}
+                      <span className="sub-arrow" aria-hidden="true">
+                        →
+                      </span>{' '}
+                      <span>
+                        <span className="sub-label on">ON</span> {names([on])}
+                      </span>
+                    </p>
+                  ))}
+                </div>
               )}
               {run.notice.missed > 0 && (
                 <p className="hint">
@@ -361,6 +389,12 @@ export function Game({
         formationId={run.formationId}
         lineup={run.lineup}
         players={run.players}
+        label="Live lineup"
+        nextLineup={
+          !recovered && run.clock.phase !== 'fulltime'
+            ? nextBlock?.lineup
+            : undefined
+        }
       />
       <div className="bench">
         <span className="eyebrow">On the bench</span>
@@ -403,20 +437,53 @@ export function Game({
             >
               Enable sound
             </button>
-            <button
-              className="text-button"
-              onClick={() => {
-                setEditing([...run.lineup]);
-                setEditingSecondHalf(false);
-              }}
-            >
-              Correct current lineup
-            </button>
           </div>
           <p className="hint">
             Keep the app open to hear alerts. Background alerts are not
             supported.
           </p>
+          <details
+            className="card"
+            onToggle={(event) => {
+              if (!event.currentTarget.open) setActualDraft(null);
+            }}
+          >
+            <summary>Adjust actual lineup</summary>
+            <Field
+              formationId={run.formationId}
+              lineup={actualLineup}
+              players={run.players}
+              onChange={
+                staleActualDraft
+                  ? undefined
+                  : (slot, id) =>
+                      setActualDraft({
+                        base: [...run.lineup],
+                        lineup: swapPlayer(actualLineup, slot, id),
+                      })
+              }
+            />
+            {staleActualDraft && (
+              <div className="warning" role="status">
+                <p>
+                  The live lineup changed. Your edits are kept here. Use the
+                  current lineup to review the correction again.
+                </p>
+                <button
+                  className="secondary"
+                  onClick={() => setActualDraft(null)}
+                >
+                  Use current lineup
+                </button>
+              </div>
+            )}
+            <button
+              disabled={staleActualDraft}
+              onClick={() => accept(actualLineup)}
+            >
+              Apply actual lineup
+            </button>
+          </details>
         </>
       )}
       <details className="card">
