@@ -444,6 +444,47 @@ test('edits a preset lineup and starts an independent game run', async ({
   expect(state.active.id).not.toBe(state.active.templateId);
 });
 
+test('persists goalkeeper edits through the half in plans and game setup', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Plan name', { exact: true }).fill('Keeper plan');
+  await page.getByLabel('Total game minutes').fill('2');
+  await page.getByLabel('Rotation every').fill('0.5');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  const keeper = await selectBenchKeeper(page);
+  await page.getByRole('button', { name: '1st · 0:30', exact: true }).click();
+  await expect(
+    page.getByLabel('Player in field slot 1 (goalkeeper)', { exact: true }),
+  ).toHaveValue(keeper);
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  const plan = page
+    .getByRole('article')
+    .filter({ has: page.getByRole('heading', { name: 'Keeper plan' }) });
+  await plan.getByRole('button', { name: 'Use for game' }).click();
+  const gameKeeper = await selectBenchKeeper(page);
+  await page.getByRole('button', { name: 'Start game', exact: true }).click();
+  await page.reload();
+  const state = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('soccersub.v1')!),
+  );
+  expect(
+    state.active.blocks
+      .filter((block: { at: number }) => block.at < 60)
+      .map((block: { lineup: string[] }) => block.lineup[0]),
+  ).toEqual([gameKeeper, gameKeeper]);
+  expect(
+    state.teams[0].templates[1].blocks
+      .filter((block: { at: number }) => block.at < 60)
+      .map((block: { lineup: string[] }) => block.lineup[0]),
+  ).toEqual([keeper, keeper]);
+});
+
 test('stops at halftime after background time, resumes manually, and saves result', async ({
   page,
 }) => {

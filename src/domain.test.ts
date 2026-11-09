@@ -192,6 +192,26 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('keeps a corrected goalkeeper for the remaining first half only', () => {
+    const original = run();
+    original.clock.elapsed = 100;
+    const corrected = acknowledge(original, [
+      'player-10',
+      ...original.lineup.slice(1),
+    ]);
+    expect(corrected.blocks[1].lineup[0]).toBe('player-10');
+    expect(corrected.blocks[0]).toEqual(original.blocks[0]);
+    expect(corrected.blocks.slice(2)).toEqual(original.blocks.slice(2));
+    expect(corrected.events[0]).toEqual(original.events[0]);
+  });
+  it('keeps an edited halftime goalkeeper through the second half', () => {
+    const original = run();
+    original.clock = { phase: 'halftime', elapsed: 1200, anchor: null };
+    const target = ['player-11', ...original.blocks[2].lineup.slice(1)];
+    const restarted = startSecondHalf(original, 1000, target);
+    expect(restarted.blocks[3].lineup[0]).toBe('player-11');
+    expect(restarted.blocks.slice(0, 2)).toEqual(original.blocks.slice(0, 2));
+  });
   it('pairs outgoing players with bench entrants through position moves', () => {
     expect(
       substitutions(['a', 'b', 'c', 'd', 'e'], ['b', 'x', 'd', 'y', 'e']),
