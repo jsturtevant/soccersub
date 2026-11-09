@@ -23,6 +23,7 @@ import { exportBackup, importBackup, STORAGE_KEY } from './storage';
 import { useStore } from './useStore';
 import { Game, enableSound, ResultForm, useGameAlerts } from './Game';
 import { GameSetup, Minutes, Planner } from './Planner';
+import { useInstallPrompt } from './Pwa';
 
 type View =
   'teams' | 'team' | 'plan' | 'setup' | 'game' | 'history' | 'settings';
@@ -473,11 +474,13 @@ function Settings({
   replace,
   removeTeam,
   attempt,
+  install,
 }: {
   state: AppState;
   replace: (state: AppState) => void;
   removeTeam: (id: string) => void;
   attempt: (action: () => void) => void;
+  install: (() => void) | null;
 }) {
   const [preview, setPreview] = useState<AppState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -608,6 +611,11 @@ function Settings({
       </div>
       <div className="card">
         <h2>Install for the touchline</h2>
+        {install && (
+          <button className="secondary" onClick={install}>
+            Install app
+          </button>
+        )}
         <p>
           On iPhone or iPad, open in Safari and choose Share → Add to Home
           Screen. On Android Chrome or desktop, use your browser's Install app
@@ -646,6 +654,7 @@ function Settings({
 export default function App() {
   const { state, current, commit, attempt, error, setError, blocked } =
     useStore();
+  const [installPrompt, setInstallPrompt] = useInstallPrompt();
   const [view, setView] = useState<View>(state.active ? 'game' : 'teams');
   const [teamId, setTeamId] = useState('');
   const [templateId, setTemplateId] = useState<string | undefined>();
@@ -1109,6 +1118,19 @@ export default function App() {
               <Settings
                 state={state}
                 attempt={attempt}
+                install={
+                  installPrompt
+                    ? () =>
+                        attempt(() => {
+                          setInstallPrompt(null);
+                          void installPrompt.prompt().catch((error: unknown) =>
+                            attempt(() => {
+                              throw error;
+                            }),
+                          );
+                        })
+                    : null
+                }
                 replace={(next) => {
                   commit(() => next);
                   setRecovered(false);

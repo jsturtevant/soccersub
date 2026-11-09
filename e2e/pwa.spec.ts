@@ -24,8 +24,16 @@ test('PWA offers installation only for an available browser prompt', async ({
 }) => {
   await page.goto('./');
   expect(await offerInstall(page)).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Install app', exact: true }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: 'Your data', exact: true }).click();
-  await page.getByRole('button', { name: 'Install app', exact: true }).click();
+  const installation = page.locator('.card').filter({
+    has: page.getByRole('heading', { name: 'Install for the touchline' }),
+  });
+  await installation
+    .getByRole('button', { name: 'Install app', exact: true })
+    .click();
   expect(
     await page.evaluate(() => localStorage.getItem('test.install-prompts')),
   ).toBe('1');
@@ -42,10 +50,11 @@ test('PWA offers installation only for an available browser prompt', async ({
 test('PWA reports install prompt failures', async ({ page }) => {
   await page.goto('./');
   await offerInstall(page, true);
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
   await page.getByRole('button', { name: 'Install app', exact: true }).click();
-  await expect(
-    page.getByRole('status', { name: 'App availability' }),
-  ).toContainText('Installation is unavailable.');
+  await expect(page.getByRole('alert')).toContainText(
+    'Installation is unavailable.',
+  );
 });
 
 test('PWA does not offer installation when opened as an installed app', async ({
