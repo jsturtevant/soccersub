@@ -298,6 +298,7 @@ export function Planner({
           value={settings}
           onChange={setSettings}
           duration={duration}
+          attempt={attempt}
         />
         <button className="secondary full" onClick={generate}>
           {draft ? 'Regenerate lineups' : 'Generate lineups'}
@@ -419,6 +420,7 @@ export function GameSetup({
         <PlanSettingsFields
           value={settings}
           duration={duration}
+          attempt={attempt}
           onChange={(value) => {
             setSettings(value);
             setPrepared(false);

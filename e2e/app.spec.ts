@@ -592,7 +592,7 @@ test('builds a manual repeating plan and carries edits only to the next kept blo
   ).toBeDisabled();
 });
 
-test('saves custom manual times, rejects invalid edits and runs their actual boundaries', async ({
+test('selects custom manual times, rejects close additions and runs their actual boundaries', async ({
   page,
 }) => {
   await page.clock.install({ time: new Date('2026-11-13T12:00:00Z') });
@@ -603,8 +603,21 @@ test('saves custom manual times, rejects invalid edits and runs their actual bou
   await page.getByLabel('Rotation strategy').selectOption('manual');
   await page.getByLabel('Substitution schedule').selectOption('custom');
   await page.getByLabel('Total game minutes').fill('4');
-  await page.getByLabel('First-half substitution times').fill('0.5, 1.5');
-  await page.getByLabel('Second-half substitution times').fill('0.75');
+  const firstTimes = page.getByRole('group', {
+    name: 'First-half substitution times',
+    exact: true,
+  });
+  const secondTimes = page.getByRole('group', {
+    name: 'Second-half substitution times',
+    exact: true,
+  });
+  await firstTimes.getByRole('button', { name: '1:30', exact: true }).click();
+  await firstTimes.getByRole('button', { name: '0:30', exact: true }).click();
+  await secondTimes.getByText('Add exact time', { exact: true }).click();
+  await secondTimes.getByLabel('Minutes into half').fill('0.75');
+  await secondTimes
+    .getByRole('button', { name: 'Add time', exact: true })
+    .click();
   await page
     .getByRole('button', { name: 'Generate lineups', exact: true })
     .click();
@@ -614,11 +627,15 @@ test('saves custom manual times, rejects invalid edits and runs their actual bou
       .getByRole('button'),
   ).toHaveCount(5);
   await expect(page.locator('.incoming-player')).toHaveCount(0);
-  await page.getByLabel('First-half substitution times').fill('1.5, 0.5');
+  await firstTimes.getByRole('button', { name: '1:30', exact: true }).click();
   await expect(
     page.getByRole('button', { name: 'Save plan', exact: true }),
   ).toBeDisabled();
-  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await firstTimes.getByText('Add exact time', { exact: true }).click();
+  await firstTimes.getByLabel('Minutes into half').fill('0.75');
+  await firstTimes
+    .getByRole('button', { name: 'Add time', exact: true })
+    .click();
   await expect(page.getByRole('alert')).toContainText(
     'increasing substitution times',
   );
@@ -627,7 +644,7 @@ test('saves custom manual times, rejects invalid edits and runs their actual bou
       .getByRole('group', { name: 'Lineup blocks', exact: true })
       .getByRole('button'),
   ).toHaveCount(5);
-  await page.getByLabel('First-half substitution times').fill('0.5, 1.5');
+  await firstTimes.getByRole('button', { name: '1:30', exact: true }).click();
   await page.getByRole('button', { name: 'Regenerate lineups' }).click();
   await page.getByRole('button', { name: '1st · 0:30', exact: true }).click();
   const slot = page.getByLabel('Player in field slot 2', { exact: true });
@@ -651,12 +668,15 @@ test('saves custom manual times, rejects invalid edits and runs their actual bou
   });
   await expect(card).toContainText('Custom substitution times');
   await card.getByRole('button', { name: 'Use for game', exact: true }).click();
-  await expect(page.getByLabel('First-half substitution times')).toHaveValue(
-    '0.5, 1.5',
-  );
-  await expect(page.getByLabel('Second-half substitution times')).toHaveValue(
-    '0.75',
-  );
+  await expect(
+    firstTimes.getByRole('button', { name: '0:30', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    firstTimes.getByRole('button', { name: '1:30', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    secondTimes.getByRole('button', { name: '0:45', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Start game', exact: true }).click();
   let saved = await page.evaluate(
     () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
@@ -692,6 +712,73 @@ test('saves custom manual times, rejects invalid edits and runs their actual bou
   expect(saved.lineup[0]).toBe(saved.blocks[0].lineup[0]);
 });
 
+test('keeps time selection compact and preserves choices until explicitly cleared after shortening a game', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Rotation strategy').selectOption('manual');
+  await page.getByLabel('Substitution schedule').selectOption('custom');
+  const firstTimes = page.getByRole('group', {
+    name: 'First-half substitution times',
+    exact: true,
+  });
+  const secondTimes = page.getByRole('group', {
+    name: 'Second-half substitution times',
+    exact: true,
+  });
+  await firstTimes.getByRole('button', { name: '10:00', exact: true }).click();
+  await firstTimes.getByRole('button', { name: '5:00', exact: true }).click();
+  await expect(firstTimes).toContainText('Selected: 5:00, 10:00');
+  await expect(secondTimes).toContainText('No extra substitution times.');
+  await secondTimes.getByRole('button', { name: '15:00', exact: true }).click();
+  await page.getByLabel('Total game minutes').fill('240');
+  expect(
+    await firstTimes.locator('.time-options button').count(),
+  ).toBeLessThanOrEqual(24);
+  await page.getByLabel('Total game minutes').fill('20');
+  await expect(firstTimes.getByRole('status')).toContainText(
+    'no longer fit this half',
+  );
+  await expect(secondTimes.getByRole('status')).toContainText(
+    'no longer fit this half',
+  );
+  await expect(
+    firstTimes.getByRole('button', { name: '10:00', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await firstTimes.getByRole('button', { name: '10:00', exact: true }).click();
+  await secondTimes
+    .getByRole('button', { name: 'Clear times', exact: true })
+    .click();
+  await expect(firstTimes.getByRole('status')).toHaveCount(0);
+  await expect(secondTimes.getByRole('status')).toHaveCount(0);
+  await expect(
+    firstTimes.getByRole('button', { name: '5:00', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  await firstTimes
+    .getByRole('button', { name: 'Clear times', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Save plan', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await expect(
+    page
+      .getByRole('group', { name: 'Lineup blocks', exact: true })
+      .getByRole('button'),
+  ).toHaveCount(2);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
 test('regenerates manual game schedules for an adjusted squad without adding automatic subs', async ({
   page,
 }) => {
@@ -704,8 +791,10 @@ test('regenerates manual game schedules for an adjusted squad without adding aut
   await card.getByRole('button', { name: 'Use for game', exact: true }).click();
   await page.getByLabel('Rotation strategy').selectOption('manual');
   await page.getByLabel('Substitution schedule').selectOption('custom');
-  await page.getByLabel('First-half substitution times').fill('0.5');
-  await page.getByLabel('Second-half substitution times').fill('');
+  await page
+    .getByRole('group', { name: 'First-half substitution times', exact: true })
+    .getByRole('button', { name: '0:30', exact: true })
+    .click();
   await page.getByRole('checkbox', { name: /Alex/ }).uncheck();
   await page.getByRole('button', { name: "Generate today's lineups" }).click();
   await expect(page.locator('.incoming-player')).toHaveCount(0);
