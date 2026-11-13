@@ -460,6 +460,53 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('preserves later manual assignments when correcting the live goalkeeper', () => {
+    const start = players.slice(0, 9).map((player) => player.id);
+    let plan: Template = {
+      ...template(),
+      strategy: 'manual',
+      duration: 240,
+      interval: 30,
+      customTimes: [0, 30, 90, 120, 165],
+      blocks: generateBlocks(
+        players,
+        '9:3-2-3',
+        240,
+        30,
+        start,
+        'manual',
+        [0, 30, 90, 120, 165],
+      ),
+    };
+    plan = editBlock(
+      plan,
+      1,
+      [...start.slice(0, 2), 'player-10', ...start.slice(3)],
+      players,
+      true,
+    );
+    plan = editBlock(
+      plan,
+      2,
+      ['player-1', 'player-0', ...start.slice(2)],
+      players,
+      true,
+    );
+    const original = createRun(
+      { id: 'team', name: 'Team' },
+      plan,
+      players,
+      '2026-11-13',
+      '',
+    );
+    const due = advance(toggleClock(original, 1000), 36000);
+    expect(due.pendingBlock).toBe(1);
+    const corrected = acknowledge(due, ['player-9', ...start.slice(1)]);
+    expect(corrected.blocks).toEqual(original.blocks);
+    expect(corrected.lineup[0]).toBe('player-9');
+    expect(corrected.events.at(-1)).toMatchObject({ at: 35, source: 'coach' });
+    expect(corrected.blocks[2].edited).toBe(true);
+  });
   it('runs irregular manual boundaries without inventing interval blocks or changing actual play early', () => {
     let plan: Template = {
       ...template(),
