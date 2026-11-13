@@ -211,6 +211,44 @@ section {
   color: var(--muted);
   line-height: 1.6;
 }
+.time-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.time-picker legend {
+  font-weight: 650;
+  padding: 0 6px;
+}
+.time-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 8px;
+}
+.time-options button {
+  padding: 10px 6px;
+}
+.time-options button[aria-pressed='true'] {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
+.time-summary {
+  margin: 12px 0 4px;
+}
+.time-exact {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+.time-exact label {
+  flex: 1;
+  min-width: 100px;
+}
 .warning {
   color: #8c5c14;
   background: #fff8e9;

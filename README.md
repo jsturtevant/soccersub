@@ -38,8 +38,10 @@ the new rotations;
 saved plans and active games are not changed automatically.
 
 Choose **Advanced manual plan** to plan substitutions yourself. Use a repeating
-interval or enter separate times for each half in minutes, such as `5, 12.5, 20`.
-Kickoff and halftime are included. Leave a half blank for no extra blocks.
+interval or tap times for each half. Tap a selected time again to remove it,
+or use **Clear times**. Use **Add exact time** for other times; `12.5` means
+12 minutes and 30 seconds. Kickoff and halftime are included. Select no extra
+times for a half with no extra blocks.
 Times must increase and stay at least 30 seconds apart, away from each half's
 start and end.
 

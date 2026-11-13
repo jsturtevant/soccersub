@@ -8,6 +8,7 @@ import {
   rotationStrategyIds,
   type RotationStrategy,
 } from './rotations';
+import { SubstitutionTimesPicker } from './SubstitutionTimesPicker';
 
 export type PlanSettings = {
   strategy: RotationStrategy;
@@ -61,10 +62,12 @@ export function PlanSettingsFields({
   value,
   onChange,
   duration,
+  attempt,
 }: {
   value: PlanSettings;
   onChange: (value: PlanSettings) => void;
   duration: string;
+  attempt: (action: () => void) => void;
 }) {
   const manual = value.strategy === 'manual';
   return (
@@ -114,36 +117,25 @@ export function PlanSettingsFields({
       {manual && value.timing === 'custom' ? (
         <>
           <p className="hint full" id="custom-times-info">
-            Enter minutes from the start of each half, in increasing order,
-            separated by commas (for example 5, 12.5, 20). Leave a half blank
-            for no substitutions. Each half is {Number(duration) / 2} minutes.
-            Kickoff and halftime are included. Keep times at least 30 seconds
-            apart and away from the start and end of the half.
+            Each half is {Number(duration) / 2} minutes. Kickoff and halftime
+            are included. Select no extra times for a half with no
+            substitutions. Keep times at least 30 seconds apart and away from
+            the start and end of the half.
           </p>
-          <label>
-            First-half substitution times
-            <input
-              value={value.firstHalf}
-              maxLength={2000}
-              aria-describedby="custom-times-info"
-              onChange={(event) =>
-                onChange({ ...value, firstHalf: event.target.value })
-              }
-              placeholder="5, 12.5, 20"
-            />
-          </label>
-          <label>
-            Second-half substitution times
-            <input
-              value={value.secondHalf}
-              maxLength={2000}
-              aria-describedby="custom-times-info"
-              onChange={(event) =>
-                onChange({ ...value, secondHalf: event.target.value })
-              }
-              placeholder="5, 12.5, 20"
-            />
-          </label>
+          <SubstitutionTimesPicker
+            label="First-half substitution times"
+            value={value.firstHalf}
+            total={Number(duration) * 60}
+            onChange={(firstHalf) => onChange({ ...value, firstHalf })}
+            attempt={attempt}
+          />
+          <SubstitutionTimesPicker
+            label="Second-half substitution times"
+            value={value.secondHalf}
+            total={Number(duration) * 60}
+            onChange={(secondHalf) => onChange({ ...value, secondHalf })}
+            attempt={attempt}
+          />
         </>
       ) : (
         <label>
