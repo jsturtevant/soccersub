@@ -37,6 +37,21 @@ offer only the current player and bench players. Regenerate existing plans to us
 the new rotations;
 saved plans and active games are not changed automatically.
 
+Choose **Advanced manual plan** to plan substitutions yourself. Use a repeating
+interval or enter separate times for each half in minutes, such as `5, 12.5, 20`.
+Kickoff and halftime are included. Leave a half blank for no extra blocks.
+Times must increase and stay at least 30 seconds apart, away from each half's
+start and end.
+
+Generate the blocks, then select your starting players. Every block starts with
+the same lineup; there is no automatic substitution or goalkeeper change.
+An edit continues through untouched blocks until the next block you edited.
+Use **Keep this lineup from here** to protect an unchanged block before editing
+an earlier one. This also applies across halftime. Regeneration resets manual
+edits; review the plan before saving or starting a game.
+During a manual game, next-block and halftime edits affect that block only.
+Actual-lineup corrections do not replace later manual assignments.
+
 In the block editor, green **Just on** labels mark arrivals from the previous
 block. Yellow **Next** labels show entrants in the next block. These markers
 update as you edit a saved plan or prepare a game.

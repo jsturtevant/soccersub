@@ -6,9 +6,11 @@ import {
   formations,
   generateBlocks,
   parseState,
+  parseCustomTimes,
   plannedSeconds,
   rotationWarnings,
   slotRoles,
+  validatePlan,
   type Player,
   type Template,
 } from './domain';
@@ -80,6 +82,114 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('fills manual schedules with independent copies of one lineup and no goalkeeper swap', () => {
+    const start = players.slice(0, 9).map((player) => player.id);
+    for (const customTimes of [undefined, [0, 300, 1050, 1200, 1620]]) {
+      const blocks = generateBlocks(
+        players,
+        '9:3-2-3',
+        2400,
+        300,
+        start,
+        'manual',
+        customTimes,
+      );
+      expect(blocks.map((block) => block.at)).toEqual(
+        customTimes ?? boundaries(2400, 300),
+      );
+      expect(
+        blocks.every((block) => block.lineup.join() === start.join()),
+      ).toBe(true);
+      blocks[0].lineup[1] = 'player-11';
+      expect(blocks[1].lineup).toEqual(start);
+    }
+    const automaticStart = generateBlocks(
+      players,
+      '9:3-2-3',
+      2400,
+      300,
+      undefined,
+      'manual',
+    );
+    expect(
+      automaticStart.every(
+        (block) => block.lineup.join() === automaticStart[0].lineup.join(),
+      ),
+    ).toBe(true);
+  });
+  it('validates custom per-half times and rejects unordered or unsafe schedules', () => {
+    expect(parseCustomTimes(2400, '5, 17.5', '7, 15')).toEqual([
+      0, 300, 1050, 1200, 1620, 2100,
+    ]);
+    expect(parseCustomTimes(2400, '', '')).toEqual([0, 1200]);
+    for (const text of [
+      '0',
+      '20',
+      '21',
+      '-1',
+      'NaN',
+      '5,',
+      '5,5',
+      '10,5',
+      '0.1',
+      '5,5.1',
+      '1e1',
+    ])
+      expect(() => parseCustomTimes(2400, text, '')).toThrow();
+    for (const custom of [
+      [0, 300],
+      [0, 1200, 2400],
+      [0, 1200, 1210],
+      [0, 1200, NaN],
+    ]) {
+      expect(() => boundaries(2400, 300, custom)).toThrow();
+    }
+    expect(() =>
+      validatePlan(
+        {
+          ...template(),
+          customTimes: [0, 1200],
+        },
+        players,
+      ),
+    ).toThrow('advanced manual');
+  });
+  it('carries manual edits only through untouched blocks, including goalkeeper edits', () => {
+    const original: Template = {
+      ...template(),
+      strategy: 'manual',
+      interval: 300,
+      blocks: generateBlocks(
+        players,
+        '9:3-2-3',
+        2400,
+        300,
+        players.slice(0, 9).map((player) => player.id),
+        'manual',
+      ),
+    };
+    const start = original.blocks[0].lineup;
+    const pinned = editBlock(original, 5, start, players, true);
+    const changed = ['player-11', ...start.slice(1)];
+    const edited = editBlock(pinned, 1, changed, players, true);
+    expect(
+      edited.blocks
+        .slice(1, 5)
+        .every((block) => block.lineup.join() === changed.join()),
+    ).toBe(true);
+    expect(
+      edited.blocks
+        .slice(5)
+        .every((block) => block.lineup.join() === start.join()),
+    ).toBe(true);
+    expect(edited.blocks[1].edited).toBe(true);
+    expect(edited.blocks[2].edited).toBeUndefined();
+    const explicit = editBlock(edited, 2, start, players);
+    expect(explicit.blocks[3].lineup).toEqual(changed);
+    expect(
+      original.blocks.every((block) => block.lineup.join() === start.join()),
+    ).toBe(true);
+  });
   it('keeps the existing fair generator as the default strategy', () => {
     expect(generateBlocks(players, '9:3-2-3', 2400, 300)).toEqual(
       generateBlocks(players, '9:3-2-3', 2400, 300, undefined, 'fair'),
@@ -92,7 +202,9 @@ describe('lineup planning', () => {
       number: '',
       roles: index < 2 ? ['goalkeeper'] : [],
     }));
-    for (const strategy of rotationStrategyIds.filter((id) => id !== 'fair')) {
+    for (const strategy of rotationStrategyIds.filter(
+      (id) => id !== 'fair' && id !== 'manual',
+    )) {
       for (const item of formations) {
         const blocks = generateBlocks(
           squad,
@@ -348,6 +460,53 @@ describe('lineup planning', () => {
 });
 
 describe('game clock and actual lineups', () => {
+  it('runs irregular manual boundaries without inventing interval blocks or changing actual play early', () => {
+    let plan: Template = {
+      ...template(),
+      strategy: 'manual',
+      duration: 240,
+      interval: 30,
+      customTimes: [0, 30, 90, 120, 165],
+      blocks: generateBlocks(
+        players,
+        '9:3-2-3',
+        240,
+        30,
+        players.slice(0, 9).map((player) => player.id),
+        'manual',
+        [0, 30, 90, 120, 165],
+      ),
+    };
+    plan = editBlock(
+      plan,
+      1,
+      ['player-0', 'player-9', ...plan.blocks[0].lineup.slice(2)],
+      players,
+      true,
+    );
+    const original = createRun(
+      { id: 'team', name: 'Team' },
+      plan,
+      players,
+      '2026-11-13',
+      '',
+    );
+    const due = advance(toggleClock(original, 1000), 36000);
+    expect(due.pendingBlock).toBe(1);
+    expect(due.lineup).toEqual(original.lineup);
+    const applied = acknowledge(due);
+    const held = advance(applied, 66000);
+    expect(held.appliedBlock).toBe(1);
+    expect(held.events.at(-1)?.at).toBe(35);
+    const half = advance(held, 121000);
+    expect(half.clock.phase).toBe('halftime');
+    const second = startSecondHalf(half, 200000);
+    expect(second.lineup).toEqual(applied.lineup);
+    expect(advance(second, 246000).appliedBlock).toBe(4);
+    expect(
+      Object.values(estimatedSeconds(second)).reduce((a, b) => a + b, 0),
+    ).toBe(240 * 9);
+  });
   it('preserves planned goalkeeper swaps when rebuilding edited substitution rows', () => {
     const from = ['a', 'b', 'c'];
     const planned = ['b', 'x', 'c'];
@@ -582,6 +741,51 @@ describe('validated backups', () => {
         templates: [template()],
       },
     ],
+  });
+  it('preserves manual schedules and edited boundaries in saves and backups while accepting old plans', () => {
+    const old = populated();
+    expect(parseState(old).teams[0].templates[0].strategy).toBeUndefined();
+    const original: Template = {
+      ...template(),
+      strategy: 'manual',
+      customTimes: [0, 300, 1200, 1620],
+      blocks: generateBlocks(
+        players,
+        '9:3-2-3',
+        2400,
+        900,
+        undefined,
+        'manual',
+        [0, 300, 1200, 1620],
+      ),
+    };
+    const manual = editBlock(
+      original,
+      2,
+      original.blocks[2].lineup,
+      players,
+      true,
+    );
+    const state = populated();
+    state.teams[0].templates = [manual];
+    expect(
+      importBackup(exportBackup(state), null).teams[0].templates[0],
+    ).toEqual(manual);
+    const active = createRun(
+      { id: 'team', name: 'Team' },
+      manual,
+      players,
+      '2026-11-13',
+      '',
+    );
+    expect(parseState({ ...state, active }).active).toMatchObject({
+      strategy: 'manual',
+      customTimes: manual.customTimes,
+      blocks: manual.blocks,
+    });
+    const invalid = structuredClone(state);
+    invalid.teams[0].templates[0].blocks[1].at = 600;
+    expect(() => parseState(invalid)).toThrow('chosen interval');
   });
   it('excludes active games and restores completed data only', () => {
     const state = { ...populated(), active: run() };

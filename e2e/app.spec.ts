@@ -530,6 +530,203 @@ test('selects and explains rotation strategies in saved plans and game setup', a
   expect(state.teams[0].templates[1].strategy).toBe('small-changes');
 });
 
+test('builds a manual repeating plan and carries edits only to the next kept block', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Rotation strategy').selectOption('manual');
+  await page.getByLabel('Total game minutes').fill('2');
+  await page.getByLabel('Rotation every').fill('0.5');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  const field = page.getByRole('group', { name: 'Soccer field', exact: true });
+  await expect(field.locator('.incoming-player')).toHaveCount(0);
+  await page.getByRole('button', { name: '2nd · 0:30', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Keep this lineup from here', exact: true })
+    .click();
+  await page.getByRole('button', { name: '1st · 0:30', exact: true }).click();
+  const slot = field.getByLabel('Player in field slot 2', { exact: true });
+  const before = await slot.inputValue();
+  const replacement = await slot
+    .locator('option')
+    .evaluateAll(
+      (options, current) =>
+        options.find((option) => option.value !== current)!.value,
+      before,
+    );
+  await slot.selectOption(replacement);
+  await page.getByRole('button', { name: /2nd · 0:00/ }).click();
+  await expect(slot).toHaveValue(replacement);
+  await page.getByRole('button', { name: '2nd · 0:30', exact: true }).click();
+  await expect(slot).toHaveValue(before);
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  const saved = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem('soccersub.v1')!).teams[0].templates[1],
+  );
+  expect(saved.strategy).toBe('manual');
+  expect(saved.blocks[0].lineup[0]).toBe(saved.blocks[2].lineup[0]);
+  expect(
+    saved.blocks.map((block: { lineup: string[] }) => block.lineup[1]),
+  ).toEqual([before, replacement, replacement, before]);
+  const card = page.getByRole('article').filter({
+    has: page.getByRole('heading', {
+      name: 'Saturday rotation',
+      exact: true,
+    }),
+  });
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: '2nd · 0:30', exact: true }).click();
+  await expect(
+    page.getByRole('button', {
+      name: 'Lineup kept from this block',
+      exact: true,
+    }),
+  ).toBeDisabled();
+});
+
+test('saves custom manual times, rejects invalid edits and runs their actual boundaries', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-13T12:00:00Z') });
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await page.getByLabel('Rotation strategy').selectOption('manual');
+  await page.getByLabel('Substitution schedule').selectOption('custom');
+  await page.getByLabel('Total game minutes').fill('4');
+  await page.getByLabel('First-half substitution times').fill('0.5, 1.5');
+  await page.getByLabel('Second-half substitution times').fill('0.75');
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('group', { name: 'Lineup blocks', exact: true })
+      .getByRole('button'),
+  ).toHaveCount(5);
+  await expect(page.locator('.incoming-player')).toHaveCount(0);
+  await page.getByLabel('First-half substitution times').fill('1.5, 0.5');
+  await expect(
+    page.getByRole('button', { name: 'Save plan', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'increasing substitution times',
+  );
+  await expect(
+    page
+      .getByRole('group', { name: 'Lineup blocks', exact: true })
+      .getByRole('button'),
+  ).toHaveCount(5);
+  await page.getByLabel('First-half substitution times').fill('0.5, 1.5');
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await page.getByRole('button', { name: '1st · 0:30', exact: true }).click();
+  const slot = page.getByLabel('Player in field slot 2', { exact: true });
+  const before = await slot.inputValue();
+  const replacement = await slot
+    .locator('option')
+    .evaluateAll(
+      (options, current) =>
+        options.find((option) => option.value !== current)!.value,
+      before,
+    );
+  await slot.selectOption(replacement);
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  const card = page.getByRole('article').filter({
+    has: page.getByRole('heading', {
+      name: 'Saturday rotation',
+      exact: true,
+    }),
+  });
+  await expect(card).toContainText('Custom substitution times');
+  await card.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await expect(page.getByLabel('First-half substitution times')).toHaveValue(
+    '0.5, 1.5',
+  );
+  await expect(page.getByLabel('Second-half substitution times')).toHaveValue(
+    '0.75',
+  );
+  await page.getByRole('button', { name: 'Start game', exact: true }).click();
+  let saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+  );
+  expect(saved.customTimes).toEqual([0, 30, 90, 120, 165]);
+  expect(saved.blocks.map((block: { at: number }) => block.at)).toEqual(
+    saved.customTimes,
+  );
+  await expect(
+    page.getByRole('button', { name: 'Pause clock', exact: true }),
+  ).toBeVisible();
+  await page.clock.runFor(35_000);
+  await expect(
+    page.getByRole('button', { name: 'Acknowledge changes', exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Acknowledge changes', exact: true })
+    .click();
+  await page.clock.runFor(30_000);
+  saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+  );
+  expect(saved.appliedBlock).toBe(1);
+  expect(saved.lineup[1]).toBe(replacement);
+  await page.clock.runFor(60_000);
+  await page
+    .getByRole('button', { name: 'Start second half', exact: true })
+    .click();
+  saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
+  );
+  expect(saved.lineup[1]).toBe(replacement);
+  expect(saved.lineup[0]).toBe(saved.blocks[0].lineup[0]);
+});
+
+test('regenerates manual game schedules for an adjusted squad without adding automatic subs', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  const card = page.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'Saturday 9v9', exact: true }),
+  });
+  await card.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await page.getByLabel('Rotation strategy').selectOption('manual');
+  await page.getByLabel('Substitution schedule').selectOption('custom');
+  await page.getByLabel('First-half substitution times').fill('0.5');
+  await page.getByLabel('Second-half substitution times').fill('');
+  await page.getByRole('checkbox', { name: /Alex/ }).uncheck();
+  await page.getByRole('button', { name: "Generate today's lineups" }).click();
+  await expect(page.locator('.incoming-player')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Start game', exact: true }).click();
+  const state = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('soccersub.v1')!),
+  );
+  expect(state.active.strategy).toBe('manual');
+  expect(state.active.blocks.map((block: { at: number }) => block.at)).toEqual([
+    0, 30, 60,
+  ]);
+  expect(
+    state.active.blocks.every(
+      (block: { lineup: string[] }) =>
+        block.lineup.join() === state.active.lineup.join(),
+    ),
+  ).toBe(true);
+  expect(state.active.lineup).not.toContain('p0');
+  expect(state.teams[0].templates[0].strategy).toBeUndefined();
+});
+
 test('warns when short halves cannot give every player a turn', async ({
   page,
 }) => {

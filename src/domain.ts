@@ -76,6 +76,7 @@ export type Player = z.infer<typeof playerSchema>;
 export const blockSchema = z.object({
   at: seconds,
   lineup: z.array(id).min(7).max(11),
+  edited: z.boolean().optional(),
 });
 export type Block = z.infer<typeof blockSchema>;
 
@@ -86,6 +87,11 @@ const planShape = {
   duration,
   interval,
   strategy: rotationStrategySchema.optional(),
+  customTimes: z
+    .array(z.number().int().nonnegative())
+    .min(2)
+    .max(480)
+    .optional(),
   blocks: z.array(blockSchema).min(2).max(480),
 };
 
@@ -157,16 +163,77 @@ export const emptyState = (): AppState => ({
 });
 export const uid = () => crypto.randomUUID();
 
-export function boundaries(total: number, step: number): number[] {
+export function boundaries(
+  total: number,
+  step: number,
+  customTimes?: number[],
+): number[] {
   duration.parse(total);
   interval.parse(step);
   const half = total / 2;
+  if (customTimes !== undefined) {
+    if (
+      customTimes.length < 2 ||
+      customTimes.length > 480 ||
+      customTimes[0] !== 0 ||
+      !customTimes.includes(half) ||
+      customTimes.some(
+        (at, index) =>
+          !Number.isInteger(at) ||
+          at < 0 ||
+          at > total - 30 ||
+          (index > 0 && at - customTimes[index - 1] < 30),
+      )
+    )
+      throw new Error(
+        'Use increasing substitution times at least 30 seconds apart. Include kickoff and halftime, with no time at full time.',
+      );
+    return [...customTimes];
+  }
   const times: number[] = [];
   for (const start of [0, half]) {
     for (let at = start; at < start + half; at += step) times.push(at);
   }
   return times;
 }
+
+export function parseCustomTimes(
+  total: number,
+  firstHalf: string,
+  secondHalf: string,
+): number[] {
+  const parse = (text: string, offset: number) => {
+    if (!text.trim()) return [];
+    return text.split(',').map((item) => {
+      if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(item.trim()))
+        throw new Error(
+          'Enter substitution times as comma-separated minutes, such as 5, 12.5, 20.',
+        );
+      const at = Number(item.trim()) * 60;
+      if (!Number.isInteger(at) || at < 30 || at > total / 2 - 30)
+        throw new Error(
+          'Each substitution time must be at least 30 seconds after the half starts and before it ends.',
+        );
+      return offset + at;
+    });
+  };
+  return boundaries(total, 30, [
+    0,
+    ...parse(firstHalf, 0),
+    total / 2,
+    ...parse(secondHalf, total / 2),
+  ]);
+}
+
+type Plan = Pick<
+  Template,
+  | 'formationId'
+  | 'duration'
+  | 'interval'
+  | 'strategy'
+  | 'customTimes'
+  | 'blocks'
+>;
 
 export function validateLineup(
   lineup: string[],
@@ -183,11 +250,10 @@ export function validateLineup(
   }
 }
 
-export function validatePlan(
-  plan: Pick<Template, 'formationId' | 'duration' | 'interval' | 'blocks'>,
-  players: Player[],
-) {
-  const times = boundaries(plan.duration, plan.interval);
+export function validatePlan(plan: Plan, players: Player[]) {
+  if (plan.customTimes !== undefined && plan.strategy !== 'manual')
+    throw new Error('Custom substitution times need an advanced manual plan.');
+  const times = boundaries(plan.duration, plan.interval, plan.customTimes);
   if (
     plan.blocks.length !== times.length ||
     plan.blocks.some((block, index) => block.at !== times[index])
@@ -275,9 +341,12 @@ export function parseState(input: unknown): AppState {
   return state;
 }
 
-export function keepGoalkeeper<
-  T extends Pick<Template, 'formationId' | 'duration' | 'interval' | 'blocks'>,
->(plan: T, keeper: string, from: number, until: number): T {
+export function keepGoalkeeper<T extends Plan>(
+  plan: T,
+  keeper: string,
+  from: number,
+  until: number,
+): T {
   const next = structuredClone(plan);
   for (const block of next.blocks) {
     if (block.at < from || block.at >= until) continue;
@@ -288,9 +357,13 @@ export function keepGoalkeeper<
   return next;
 }
 
-export function editBlock<
-  T extends Pick<Template, 'formationId' | 'duration' | 'interval' | 'blocks'>,
->(plan: T, index: number, lineup: string[], players: Player[]): T {
+export function editBlock<T extends Plan>(
+  plan: T,
+  index: number,
+  lineup: string[],
+  players: Player[],
+  carryForward = false,
+): T {
   if (!Number.isInteger(index) || !plan.blocks[index])
     throw new Error('Choose a valid lineup block.');
   validateLineup(lineup, players, plan.formationId);
@@ -298,7 +371,14 @@ export function editBlock<
   const block = next.blocks[index];
   const keeperChanged = block.lineup[0] !== lineup[0];
   block.lineup = [...lineup];
-  if (keeperChanged)
+  if (plan.strategy === 'manual') {
+    block.edited = true;
+    if (carryForward)
+      for (let future = index + 1; future < next.blocks.length; future++) {
+        if (next.blocks[future].edited) break;
+        next.blocks[future].lineup = [...lineup];
+      }
+  } else if (keeperChanged)
     next = keepGoalkeeper(
       next,
       lineup[0],
@@ -368,6 +448,7 @@ export function generateBlocks(
   step: number,
   start?: string[],
   strategy: RotationStrategy = 'fair',
+  customTimes?: number[],
 ): Block[] {
   const slots = slotRoles(formationId);
   if (players.length < slots.length)
@@ -386,9 +467,12 @@ export function generateBlocks(
   const firstKeeper = start?.[0] ?? preferred[0]?.id ?? players[0].id;
   const secondKeeper =
     preferred.find((player) => player.id !== firstKeeper)?.id ?? firstKeeper;
-  const times = boundaries(total, step);
+  if (customTimes !== undefined && strategy !== 'manual')
+    throw new Error('Custom substitution times need an advanced manual plan.');
+  const times = boundaries(total, step, customTimes);
   let previous: string[] | undefined;
   return times.map((at, index) => {
+    if (strategy === 'manual' && previous) return { at, lineup: [...previous] };
     if (at === total / 2) playedThisHalf.clear();
     const keeper = at < total / 2 ? firstKeeper : secondKeeper;
     const lineup =
@@ -410,7 +494,7 @@ export function generateBlocks(
         benchBlocks,
         playedThisHalf,
         size: slots.length,
-        strategy,
+        strategy: strategy === 'manual' ? 'fair' : strategy,
       });
       const selected = new Set(candidates.map((player) => player.id));
       const incoming = candidates.filter(

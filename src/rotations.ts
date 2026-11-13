@@ -4,6 +4,7 @@ export const rotationStrategyIds = [
   'fair',
   'small-changes',
   'longer-shifts',
+  'manual',
 ] as const;
 export type RotationStrategy = (typeof rotationStrategyIds)[number];
 
@@ -26,6 +27,11 @@ export const rotationStrategies: Record<
     description:
       'Keep players on for at least two blocks and bring on at most three players per block. The halftime goalkeeper change is an exception. Bench waits may be longer.',
   },
+  manual: {
+    name: 'Advanced manual plan',
+    description:
+      'Choose substitution times. Every block starts with the same players, with no automatic substitutions or goalkeeper swap. Edit the blocks you want to change.',
+  },
 };
 
 export function selectRotationPlayers({
@@ -47,7 +53,7 @@ export function selectRotationPlayers({
   benchBlocks: Record<string, number>;
   playedThisHalf: Set<string>;
   size: number;
-  strategy: RotationStrategy;
+  strategy: Exclude<RotationStrategy, 'manual'>;
 }): Player[] {
   let candidates = players
     .filter((player) => player.id !== keeper)

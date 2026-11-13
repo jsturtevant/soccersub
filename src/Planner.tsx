@@ -7,7 +7,6 @@ import {
   generateBlocks,
   plannedSeconds,
   rotationWarnings,
-  rotationStrategySchema,
   uid,
   validatePlan,
   type Player,
@@ -16,43 +15,13 @@ import {
 } from './domain';
 import { Field, swapPlayer } from './Field';
 import { changes } from './engine';
+import { rotationStrategies } from './rotations';
 import {
-  rotationStrategies,
-  rotationStrategyIds,
-  type RotationStrategy,
-} from './rotations';
-
-function StrategySelect({
-  value,
-  onChange,
-}: {
-  value: RotationStrategy;
-  onChange: (value: RotationStrategy) => void;
-}) {
-  return (
-    <div className="full">
-      <label>
-        Rotation strategy
-        <select
-          value={value}
-          aria-describedby="rotation-strategy-info"
-          onChange={(event) =>
-            onChange(rotationStrategySchema.parse(event.target.value))
-          }
-        >
-          {rotationStrategyIds.map((id) => (
-            <option key={id} value={id}>
-              {rotationStrategies[id].name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="hint" id="rotation-strategy-info">
-        {rotationStrategies[value].description}
-      </p>
-    </div>
-  );
-}
+  initialPlanSettings,
+  PlanSettingsFields,
+  planSchedule,
+  samePlanSettings,
+} from './PlanSettings';
 
 export function Minutes({
   players,
@@ -92,6 +61,7 @@ export function LineupEditor({
   ];
   const noKeeperSwap = halfKeepers[0] === halfKeepers[1];
   const warnings = rotationWarnings(plan, players);
+  const manual = plan.strategy === 'manual';
   return (
     <>
       <div className="section-heading">
@@ -101,8 +71,12 @@ export function LineupEditor({
       <p className="hint">
         Choose a block, then tap a player on the field to select a substitute
         from the bench. Players who stay on keep their positions. Goalkeepers
-        may change at halftime. A goalkeeper edit lasts for the rest of that
-        half.
+        may change at halftime.
+      </p>
+      <p className="hint">
+        {manual
+          ? 'An edit continues through untouched blocks, including halftime, until the next block you edited. Keep a lineup to mark an unchanged boundary.'
+          : 'A goalkeeper edit lasts for the rest of that half.'}
       </p>
       <p className="hint">
         Green marks players who came on from the previous block. Yellow shows
@@ -154,10 +128,25 @@ export function LineupEditor({
               index,
               swapPlayer(block.lineup, slot, player),
               players,
+              manual,
             ),
           )
         }
       />
+      {manual && (
+        <button
+          type="button"
+          className="text-button"
+          disabled={block.edited}
+          onClick={() =>
+            onChange(editBlock(plan, index, block.lineup, players, true))
+          }
+        >
+          {block.edited
+            ? 'Lineup kept from this block'
+            : 'Keep this lineup from here'}
+        </button>
+      )}
       <div className="bench">
         <span className="eyebrow">On the bench</span>
         <p>
@@ -204,40 +193,38 @@ export function Planner({
   const [duration, setDuration] = useState(
     initial ? String(initial.duration / 60) : '60',
   );
-  const [interval, setInterval] = useState(
-    initial ? String(initial.interval / 60) : '5',
-  );
+  const [settings, setSettings] = useState(() => initialPlanSettings(initial));
+  const [generatedSettings, setGeneratedSettings] = useState(settings);
   const [draft, setDraft] = useState<Template | null>(initial ?? null);
-  const [strategy, setStrategy] = useState<RotationStrategy>(
-    initial?.strategy ?? 'fair',
-  );
   const size = formation(formationId).size;
   const planName = name.trim();
   const generate = () =>
     attempt(() => {
+      const total = Number(duration) * 60;
+      const schedule = planSchedule(settings, total);
       setDraft({
         id: initial?.id ?? uid(),
         name: planName || 'Saturday rotation',
         formationId,
-        duration: Number(duration) * 60,
-        interval: Number(interval) * 60,
-        strategy,
+        duration: total,
+        ...schedule,
         blocks: generateBlocks(
           team.players,
           formationId,
-          Number(duration) * 60,
-          Number(interval) * 60,
+          total,
+          schedule.interval,
           undefined,
-          strategy,
+          schedule.strategy,
+          schedule.customTimes,
         ),
       });
+      setGeneratedSettings({ ...settings });
     });
   const dirtyTiming =
     draft &&
     (draft.formationId !== formationId ||
       draft.duration !== Number(duration) * 60 ||
-      draft.interval !== Number(interval) * 60 ||
-      (draft.strategy ?? 'fair') !== strategy);
+      !samePlanSettings(settings, generatedSettings));
   return (
     <section>
       <p className="eyebrow">{team.name} / Plan template</p>
@@ -304,22 +291,14 @@ export function Planner({
             onChange={(event) => setDuration(event.target.value)}
           />
         </label>
-        <label>
-          Rotation every (minutes)
-          <input
-            type="number"
-            min={0.5}
-            max={120}
-            step={0.5}
-            value={interval}
-            onChange={(event) => setInterval(event.target.value)}
-          />
-        </label>
         <p className="hint full">
-          Two equal halves. The clock stops at halftime. Goalkeeper changes are
-          suggested for the second half.
+          Two equal halves. The clock stops at halftime.
         </p>
-        <StrategySelect value={strategy} onChange={setStrategy} />
+        <PlanSettingsFields
+          value={settings}
+          onChange={setSettings}
+          duration={duration}
+        />
         <button className="secondary full" onClick={generate}>
           {draft ? 'Regenerate lineups' : 'Generate lineups'}
         </button>
@@ -380,10 +359,7 @@ export function GameSetup({
 }) {
   const [squad, setSquad] = useState(team.players.map((player) => player.id));
   const [duration, setDuration] = useState(String(template.duration / 60));
-  const [interval, setInterval] = useState(String(template.interval / 60));
-  const [strategy, setStrategy] = useState<RotationStrategy>(
-    template.strategy ?? 'fair',
-  );
+  const [settings, setSettings] = useState(() => initialPlanSettings(template));
   const [date, setDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -440,24 +416,11 @@ export function GameSetup({
             }}
           />
         </label>
-        <label>
-          Rotation every (minutes)
-          <input
-            type="number"
-            min={0.5}
-            max={120}
-            step={0.5}
-            value={interval}
-            onChange={(event) => {
-              setInterval(event.target.value);
-              setPrepared(false);
-            }}
-          />
-        </label>
-        <StrategySelect
-          value={strategy}
+        <PlanSettingsFields
+          value={settings}
+          duration={duration}
           onChange={(value) => {
-            setStrategy(value);
+            setSettings(value);
             setPrepared(false);
           }}
         />
@@ -488,7 +451,7 @@ export function GameSetup({
           onClick={() =>
             attempt(() => {
               const total = Number(duration) * 60;
-              const step = Number(interval) * 60;
+              const schedule = planSchedule(settings, total);
               const start = plan.blocks[0].lineup.every((id) =>
                 squad.includes(id),
               )
@@ -497,15 +460,15 @@ export function GameSetup({
               setPlan({
                 ...template,
                 duration: total,
-                interval: step,
-                strategy,
+                ...schedule,
                 blocks: generateBlocks(
                   players,
                   template.formationId,
                   total,
-                  step,
+                  schedule.interval,
                   start,
-                  strategy,
+                  schedule.strategy,
+                  schedule.customTimes,
                 ),
               });
               setPrepared(true);
@@ -517,8 +480,7 @@ export function GameSetup({
         {!prepared &&
           canReuse &&
           Number(duration) * 60 === template.duration &&
-          Number(interval) * 60 === template.interval &&
-          strategy === (template.strategy ?? 'fair') && (
+          samePlanSettings(settings, initialPlanSettings(template)) && (
             <button
               className="text-button"
               onClick={() => {

@@ -209,8 +209,10 @@ function TeamPage({
                 {template.duration / 60} min
               </p>
               <small>
-                Rotate every {template.interval / 60} min ·{' '}
-                {template.blocks.length} blocks
+                {template.customTimes
+                  ? 'Custom substitution times'
+                  : `Rotate every ${template.interval / 60} min`}{' '}
+                · {template.blocks.length} blocks
               </small>
             </div>
             <div className="row wrap">
