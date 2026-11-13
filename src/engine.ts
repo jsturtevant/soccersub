@@ -227,7 +227,11 @@ export function acknowledge(run: Run, lineup?: string[]): Run {
     next.pendingBlock !== null
       ? next.blocks[next.pendingBlock].lineup[0]
       : next.lineup[0];
-  if (lineup && (target[0] !== next.lineup[0] || target[0] !== plannedKeeper))
+  if (
+    next.strategy !== 'manual' &&
+    lineup &&
+    (target[0] !== next.lineup[0] || target[0] !== plannedKeeper)
+  )
     next = keepGoalkeeper(
       next,
       target[0],
