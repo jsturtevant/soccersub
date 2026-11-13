@@ -478,6 +478,58 @@ for (const mode of ['saved plan', 'game setup']) {
   });
 }
 
+test('selects and explains rotation strategies in saved plans and game setup', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'New plan', exact: true }).click();
+  await expect(page.getByLabel('Rotation strategy')).toHaveValue('fair');
+  await page.getByLabel('Rotation strategy').selectOption('longer-shifts');
+  await expect(page.locator('#rotation-strategy-info')).toContainText(
+    'at least two blocks',
+  );
+  await page
+    .getByRole('button', { name: 'Generate lineups', exact: true })
+    .click();
+  await page.getByLabel('Rotation strategy').selectOption('small-changes');
+  await expect(
+    page.getByRole('button', { name: 'Save plan', exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator('#rotation-strategy-info')).toContainText(
+    'at most three',
+  );
+  await page.getByRole('button', { name: 'Regenerate lineups' }).click();
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  const card = page.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'Saturday rotation', exact: true }),
+  });
+  await card.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('Rotation strategy')).toHaveValue(
+    'small-changes',
+  );
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await card.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await expect(page.getByLabel('Rotation strategy')).toHaveValue(
+    'small-changes',
+  );
+  await page.getByLabel('Rotation strategy').selectOption('longer-shifts');
+  await expect(
+    page.getByRole('button', { name: 'Start game', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: "Generate today's lineups" }).click();
+  await page.getByRole('button', { name: 'Start game', exact: true }).click();
+  const state = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('soccersub.v1')!),
+  );
+  expect(state.active.strategy).toBe('longer-shifts');
+  expect(state.active.blocks[1].lineup).toEqual(state.active.blocks[0].lineup);
+  expect(state.teams[0].templates[1].strategy).toBe('small-changes');
+});
+
 test('warns when short halves cannot give every player a turn', async ({
   page,
 }) => {

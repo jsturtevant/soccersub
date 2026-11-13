@@ -27,6 +27,7 @@ import {
   toggleClock,
 } from './engine';
 import { exportBackup, importBackup } from './storage';
+import { rotationStrategyIds } from './rotations';
 
 const players: Player[] = Array.from({ length: 12 }, (_, index) => ({
   id: `player-${index}`,
@@ -79,6 +80,60 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('keeps the existing fair generator as the default strategy', () => {
+    expect(generateBlocks(players, '9:3-2-3', 2400, 300)).toEqual(
+      generateBlocks(players, '9:3-2-3', 2400, 300, undefined, 'fair'),
+    );
+  });
+  it('limits small changes and longer shifts without moving retained players', () => {
+    const squad: Player[] = Array.from({ length: 18 }, (_, index) => ({
+      id: `squad-${index}`,
+      name: `Player ${index}`,
+      number: '',
+      roles: index < 2 ? ['goalkeeper'] : [],
+    }));
+    for (const strategy of rotationStrategyIds.filter((id) => id !== 'fair')) {
+      for (const item of formations) {
+        const blocks = generateBlocks(
+          squad,
+          item.id,
+          3600,
+          300,
+          undefined,
+          strategy,
+        );
+        const stints = new Map(blocks[0].lineup.map((id) => [id, 1]));
+        for (let index = 1; index < blocks.length; index++) {
+          const previous = blocks[index - 1].lineup;
+          const next = blocks[index].lineup;
+          expect(
+            next.filter((id) => !previous.includes(id)).length,
+          ).toBeLessThanOrEqual(3);
+          for (const id of previous) {
+            const keeperSwap =
+              blocks[index].at === 1800 &&
+              (id === previous[0] || id === next[0]);
+            if (next.includes(id) && !keeperSwap)
+              expect(next.indexOf(id)).toBe(previous.indexOf(id));
+            if (
+              !next.includes(id) &&
+              strategy === 'longer-shifts' &&
+              !keeperSwap
+            )
+              expect(stints.get(id)).toBeGreaterThanOrEqual(2);
+          }
+          for (const id of next)
+            stints.set(
+              id,
+              previous.includes(id) ? (stints.get(id) ?? 0) + 1 : 1,
+            );
+        }
+        if (strategy === 'longer-shifts')
+          expect(blocks[1].lineup).toEqual(blocks[0].lineup);
+        else expect(blocks[1].lineup).not.toEqual(blocks[0].lineup);
+      }
+    }
+  });
   it('resolves future goalkeeper duplicates without moving other players', () => {
     const original = template();
     const next = editBlock(

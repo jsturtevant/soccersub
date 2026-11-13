@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  rotationStrategyIds,
+  selectRotationPlayers,
+  type RotationStrategy,
+} from './rotations';
+
+export const rotationStrategySchema = z.enum(rotationStrategyIds);
 
 export const roles = [
   'goalkeeper',
@@ -78,6 +85,7 @@ const planShape = {
     .refine((value) => formations.some((item) => item.id === value)),
   duration,
   interval,
+  strategy: rotationStrategySchema.optional(),
   blocks: z.array(blockSchema).min(2).max(480),
 };
 
@@ -359,6 +367,7 @@ export function generateBlocks(
   total: number,
   step: number,
   start?: string[],
+  strategy: RotationStrategy = 'fair',
 ): Block[] {
   const slots = slotRoles(formationId);
   if (players.length < slots.length)
@@ -392,21 +401,17 @@ export function generateBlocks(
       const keeperSlot = lineup.indexOf(keeper);
       if (keeperSlot > 0) lineup[keeperSlot] = lineup[0];
       lineup[0] = keeper;
-      const candidates = players
-        .filter((player) => player.id !== keeper)
-        .sort(
-          (a, b) =>
-            Number(playedThisHalf.has(a.id)) -
-              Number(playedThisHalf.has(b.id)) ||
-            benchBlocks[b.id] - benchBlocks[a.id] ||
-            Number(previous?.includes(b.id) && stints[b.id] < 2) -
-              Number(previous?.includes(a.id) && stints[a.id] < 2) ||
-            minutes[a.id] - minutes[b.id] ||
-            Number(previous?.includes(b.id)) -
-              Number(previous?.includes(a.id)) ||
-            a.id.localeCompare(b.id),
-        )
-        .slice(0, slots.length - 1);
+      const candidates = selectRotationPlayers({
+        players,
+        keeper,
+        previous,
+        minutes,
+        stints,
+        benchBlocks,
+        playedThisHalf,
+        size: slots.length,
+        strategy,
+      });
       const selected = new Set(candidates.map((player) => player.id));
       const incoming = candidates.filter(
         (player) => !lineup.slice(1).includes(player.id),

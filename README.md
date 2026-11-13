@@ -22,8 +22,15 @@ change the plan or earlier matches.
 Generated substitutions keep retained players in their field positions, except
 for the goalkeeper change at halftime. Generation prioritizes a turn for every
 player in each half and no more than one consecutive block on the bench.
-Two-block playing stints and changes of at most three players are kept where
-possible, but the participation goals take priority. Large squads or short
+Choose a **Rotation strategy** in the plan or game setup:
+
+- **Fair participation** (default): prioritize each half and short bench waits.
+- **Small changes**: bring on at most three players per block and balance minutes.
+- **Longer shifts**: keep players on for at least two blocks, with at most three
+  entrants. The halftime goalkeeper change is an exception.
+
+The last two strategies can mean longer bench waits or no turn in a short half.
+Large squads or short
 halves can make these goals impossible; the block editor names players who miss
 a half or sit consecutive blocks, including after manual edits. Field pickers
 offer only the current player and bench players. Regenerate existing plans to use

@@ -7,6 +7,7 @@ import {
   generateBlocks,
   plannedSeconds,
   rotationWarnings,
+  rotationStrategySchema,
   uid,
   validatePlan,
   type Player,
@@ -15,6 +16,43 @@ import {
 } from './domain';
 import { Field, swapPlayer } from './Field';
 import { changes } from './engine';
+import {
+  rotationStrategies,
+  rotationStrategyIds,
+  type RotationStrategy,
+} from './rotations';
+
+function StrategySelect({
+  value,
+  onChange,
+}: {
+  value: RotationStrategy;
+  onChange: (value: RotationStrategy) => void;
+}) {
+  return (
+    <div className="full">
+      <label>
+        Rotation strategy
+        <select
+          value={value}
+          aria-describedby="rotation-strategy-info"
+          onChange={(event) =>
+            onChange(rotationStrategySchema.parse(event.target.value))
+          }
+        >
+          {rotationStrategyIds.map((id) => (
+            <option key={id} value={id}>
+              {rotationStrategies[id].name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint" id="rotation-strategy-info">
+        {rotationStrategies[value].description}
+      </p>
+    </div>
+  );
+}
 
 export function Minutes({
   players,
@@ -71,9 +109,7 @@ export function LineupEditor({
         who comes on in the next block.
       </p>
       <p className="hint">
-        Generation aims for a turn in each half and no more than one block on
-        the bench. This can require a one-block stint or more than three
-        substitutions.
+        {rotationStrategies[plan.strategy ?? 'fair'].description}
       </p>
       {warnings.length > 0 && (
         <div className="warning" role="status">
@@ -172,6 +208,9 @@ export function Planner({
     initial ? String(initial.interval / 60) : '5',
   );
   const [draft, setDraft] = useState<Template | null>(initial ?? null);
+  const [strategy, setStrategy] = useState<RotationStrategy>(
+    initial?.strategy ?? 'fair',
+  );
   const size = formation(formationId).size;
   const planName = name.trim();
   const generate = () =>
@@ -182,11 +221,14 @@ export function Planner({
         formationId,
         duration: Number(duration) * 60,
         interval: Number(interval) * 60,
+        strategy,
         blocks: generateBlocks(
           team.players,
           formationId,
           Number(duration) * 60,
           Number(interval) * 60,
+          undefined,
+          strategy,
         ),
       });
     });
@@ -194,7 +236,8 @@ export function Planner({
     draft &&
     (draft.formationId !== formationId ||
       draft.duration !== Number(duration) * 60 ||
-      draft.interval !== Number(interval) * 60);
+      draft.interval !== Number(interval) * 60 ||
+      (draft.strategy ?? 'fair') !== strategy);
   return (
     <section>
       <p className="eyebrow">{team.name} / Plan template</p>
@@ -276,6 +319,7 @@ export function Planner({
           Two equal halves. The clock stops at halftime. Goalkeeper changes are
           suggested for the second half.
         </p>
+        <StrategySelect value={strategy} onChange={setStrategy} />
         <button className="secondary full" onClick={generate}>
           {draft ? 'Regenerate lineups' : 'Generate lineups'}
         </button>
@@ -337,6 +381,9 @@ export function GameSetup({
   const [squad, setSquad] = useState(team.players.map((player) => player.id));
   const [duration, setDuration] = useState(String(template.duration / 60));
   const [interval, setInterval] = useState(String(template.interval / 60));
+  const [strategy, setStrategy] = useState<RotationStrategy>(
+    template.strategy ?? 'fair',
+  );
   const [date, setDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -407,6 +454,13 @@ export function GameSetup({
             }}
           />
         </label>
+        <StrategySelect
+          value={strategy}
+          onChange={(value) => {
+            setStrategy(value);
+            setPrepared(false);
+          }}
+        />
       </div>
       <h2>
         Available squad <span className="badge">{players.length} players</span>
@@ -444,12 +498,14 @@ export function GameSetup({
                 ...template,
                 duration: total,
                 interval: step,
+                strategy,
                 blocks: generateBlocks(
                   players,
                   template.formationId,
                   total,
                   step,
                   start,
+                  strategy,
                 ),
               });
               setPrepared(true);
@@ -461,7 +517,8 @@ export function GameSetup({
         {!prepared &&
           canReuse &&
           Number(duration) * 60 === template.duration &&
-          Number(interval) * 60 === template.interval && (
+          Number(interval) * 60 === template.interval &&
+          strategy === (template.strategy ?? 'fair') && (
             <button
               className="text-button"
               onClick={() => {
