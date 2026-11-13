@@ -46,10 +46,12 @@ export function LineupEditor({
   plan,
   players,
   onChange,
+  showStrategyInfo = true,
 }: {
   plan: Template;
   players: Player[];
   onChange: (plan: Template) => void;
+  showStrategyInfo?: boolean;
 }) {
   const [selected, setSelected] = useState(0);
   const index = Math.min(selected, plan.blocks.length - 1);
@@ -82,9 +84,11 @@ export function LineupEditor({
         Green marks players who came on from the previous block. Yellow shows
         who comes on in the next block.
       </p>
-      <p className="hint">
-        {rotationStrategies[plan.strategy ?? 'fair'].description}
-      </p>
+      {showStrategyInfo && (
+        <p className="hint">
+          {rotationStrategies[plan.strategy ?? 'fair'].description}
+        </p>
+      )}
       {warnings.length > 0 && (
         <div className="warning" role="status">
           <strong>Rotation goals need attention</strong>
@@ -359,8 +363,6 @@ export function GameSetup({
   attempt: (action: () => void) => void;
 }) {
   const [squad, setSquad] = useState(team.players.map((player) => player.id));
-  const [duration, setDuration] = useState(String(template.duration / 60));
-  const [settings, setSettings] = useState(() => initialPlanSettings(template));
   const [date, setDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -369,7 +371,7 @@ export function GameSetup({
   const [plan, setPlan] = useState<Template>(structuredClone(template));
   const [prepared, setPrepared] = useState(true);
   const players = team.players.filter((player) => squad.includes(player.id));
-  const canReuse = plan.blocks.every((block) =>
+  const canReuse = template.blocks.every((block) =>
     block.lineup.every((id) => squad.includes(id)),
   );
   const changeSquad = (id: string, checked: boolean) => {
@@ -385,7 +387,7 @@ export function GameSetup({
       </p>
       <h1>Ready for kickoff?</h1>
       <p className="lead">
-        Choose today's squad. Your template stays unchanged.
+        Confirm today's squad. Your saved plan stays unchanged.
       </p>
       <div className="card form-grid">
         <label>
@@ -404,28 +406,6 @@ export function GameSetup({
             onChange={(event) => setOpponent(event.target.value)}
           />
         </label>
-        <label>
-          Total game minutes
-          <input
-            type="number"
-            min={2}
-            max={240}
-            value={duration}
-            onChange={(event) => {
-              setDuration(event.target.value);
-              setPrepared(false);
-            }}
-          />
-        </label>
-        <PlanSettingsFields
-          value={settings}
-          duration={duration}
-          attempt={attempt}
-          onChange={(value) => {
-            setSettings(value);
-            setPrepared(false);
-          }}
-        />
       </div>
       <h2>
         Available squad <span className="badge">{players.length} players</span>
@@ -452,8 +432,6 @@ export function GameSetup({
           className="secondary"
           onClick={() =>
             attempt(() => {
-              const total = Number(duration) * 60;
-              const schedule = planSchedule(settings, total);
               const start = plan.blocks[0].lineup.every((id) =>
                 squad.includes(id),
               )
@@ -461,16 +439,14 @@ export function GameSetup({
                 : undefined;
               setPlan({
                 ...template,
-                duration: total,
-                ...schedule,
                 blocks: generateBlocks(
                   players,
                   template.formationId,
-                  total,
-                  schedule.interval,
+                  template.duration,
+                  template.interval,
                   start,
-                  schedule.strategy,
-                  schedule.customTimes,
+                  template.strategy,
+                  template.customTimes,
                 ),
               });
               setPrepared(true);
@@ -479,28 +455,31 @@ export function GameSetup({
         >
           Generate today's lineups
         </button>
-        {!prepared &&
-          canReuse &&
-          Number(duration) * 60 === template.duration &&
-          samePlanSettings(settings, initialPlanSettings(template)) && (
-            <button
-              className="text-button"
-              onClick={() => {
-                setPlan(structuredClone(template));
-                setPrepared(true);
-              }}
-            >
-              Keep template lineups
-            </button>
-          )}
+        {!prepared && canReuse && (
+          <button
+            className="text-button"
+            onClick={() => {
+              setPlan(structuredClone(template));
+              setPrepared(true);
+            }}
+          >
+            Keep template lineups
+          </button>
+        )}
       </div>
       {!prepared && (
         <p className="warning">
-          Review or regenerate lineups after changing the squad or timing.
+          Squad changed. Regenerate lineups or keep the template lineups if
+          available.
         </p>
       )}
       {prepared && (
-        <LineupEditor plan={plan} players={players} onChange={setPlan} />
+        <LineupEditor
+          plan={plan}
+          players={players}
+          onChange={setPlan}
+          showStrategyInfo={false}
+        />
       )}
       <div className="action-bar">
         <button className="secondary" onClick={cancel}>

@@ -11,6 +11,7 @@ and follow the game with a clear field view and substitution alerts.
 2. Create a plan. Choose 7v7, 9v9, or 11v11, a formation, total game length, and rotation interval.
 3. Generate lineups, then adjust each block by tapping players on the field.
 4. Use the plan for a game. Select the available squad and review today's lineups.
+   If players are absent, regenerate with the saved plan's settings.
 5. Start the game and keep the app open for sound alerts. Acknowledge changes or correct the actual lineup.
 
 The clock stops at halftime. Review the goalkeeper and lineup, then start the
@@ -22,7 +23,7 @@ change the plan or earlier matches.
 Generated substitutions keep retained players in their field positions, except
 for the goalkeeper change at halftime. Generation prioritizes a turn for every
 player in each half and no more than one consecutive block on the bench.
-Choose a **Rotation strategy** in the plan or game setup:
+Choose a **Rotation strategy** in the plan editor:
 
 - **Fair participation** (default): prioritize each half and short bench waits.
 - **Small changes**: bring on at most three players per block and balance minutes.
@@ -53,6 +54,9 @@ an earlier one. This also applies across halftime. Regeneration resets manual
 edits; review the plan before saving or starting a game.
 During a manual game, next-block and halftime edits affect that block only.
 Actual-lineup corrections do not replace later manual assignments.
+
+Game setup uses the saved formation, game length, strategy and schedule.
+Change these settings in the plan editor, not in game setup.
 
 In the block editor, green **Just on** labels mark arrivals from the previous
 block. Yellow **Next** labels show entrants in the next block. These markers
