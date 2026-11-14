@@ -1124,6 +1124,19 @@ test('stops at halftime after background time, resumes manually, and saves resul
   expect(data.history[0].run.clock.elapsed).toBe(120);
 });
 
+test('links to the public source code from About Touchline', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your data', exact: true }).click();
+  const about = page.locator('.card').filter({
+    has: page.getByRole('heading', { name: 'About Touchline', exact: true }),
+  });
+  await expect(
+    about.getByRole('link', { name: 'View source code on GitHub' }),
+  ).toHaveAttribute('href', 'https://github.com/jsturtevant/touchline');
+});
+
 test('rejects bad imports without replacing data and requires preview confirmation', async ({
   page,
 }) => {
