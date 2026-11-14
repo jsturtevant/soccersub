@@ -146,7 +146,7 @@ async function selectBenchKeeper(page: Page) {
   return replacement;
 }
 
-test('previews only bench entrants and pairs due substitutions through halftime', async ({
+test('previews next position occupants and pairs only bench substitutions through halftime', async ({
   page,
 }) => {
   await page.clock.install({ time: new Date('2026-11-08T12:00:00Z') });
@@ -159,16 +159,16 @@ test('previews only bench entrants and pairs due substitutions through halftime'
     has: page.getByText('Blair', { exact: true }),
   });
   await expect(replacement.locator('.incoming-player')).toHaveText(
-    'Next Jules',
+    'Next Casey',
   );
-  await expect(field.locator('.incoming-player')).toHaveCount(2);
+  await expect(field.locator('.incoming-player')).toHaveCount(3);
   await expect(
     field.locator('.incoming-player').filter({ hasText: 'Casey' }),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await page.getByRole('button', { name: 'Resume clock' }).click();
   await page.clock.runFor(35_000);
   await expect(replacement.locator('.incoming-player')).toHaveText(
-    'Next Jules',
+    'Next Casey',
   );
   await expect(
     page
@@ -204,6 +204,54 @@ test('previews only bench entrants and pairs due substitutions through halftime'
   await page.clock.runFor(65_000);
   await expect(field.locator('.incoming-player')).toHaveCount(0);
 });
+
+for (const mode of ['saved plan', 'game setup', 'live game']) {
+  test(`shows the next goalkeeper and field occupant for a position-only change in ${mode}`, async ({
+    page,
+  }) => {
+    const lineup = template.blocks[0].lineup;
+    const positionPlan: Template = {
+      ...template,
+      blocks: [
+        template.blocks[0],
+        { at: 30, lineup: [lineup[1], lineup[0], ...lineup.slice(2)] },
+        ...template.blocks.slice(2),
+      ],
+    };
+    if (mode === 'live game') {
+      await seed(
+        page,
+        createRun(team, positionPlan, players, '2026-11-13', ''),
+      );
+    } else await seed(page, false, positionPlan);
+    await page.goto('/');
+    if (mode === 'live game')
+      await page.getByRole('button', { name: 'Resume saved game' }).click();
+    else {
+      await page.getByRole('button', { name: /Riverside U12/ }).click();
+      await page
+        .getByRole('button', {
+          name: mode === 'saved plan' ? 'Edit' : 'Use for game',
+          exact: true,
+        })
+        .click();
+    }
+    const field = page.getByRole('group', {
+      name: mode === 'live game' ? 'Live lineup' : 'Soccer field',
+      exact: true,
+    });
+    expect(
+      (await field.locator('.incoming-player').allTextContents()).sort(),
+    ).toEqual(['Next Alex', 'Next Blair']);
+    await expect(
+      field.locator('.pitch-row').last().locator('.incoming-player'),
+    ).toHaveText('Next Blair');
+    if (mode === 'live game')
+      await expect(page.locator('.next-change')).toContainText(
+        'No bench changes',
+      );
+  });
+}
 
 test('keeps actual-lineup correction closed until needed and saves edits', async ({
   page,

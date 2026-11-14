@@ -588,6 +588,14 @@ describe('game clock and actual lineups', () => {
       'c',
     ]);
   });
+  it('previews a position-only change before a later bench substitution', () => {
+    const original = run();
+    const moved = [...original.lineup];
+    [moved[1], moved[2]] = [moved[2], moved[1]];
+    original.blocks[1].lineup = moved;
+    expect(nextSubstitutionIndex(original)).toBe(1);
+    expect(substitutions(original.lineup, moved)).toEqual([]);
+  });
   it('allows editing the next visible substitution past unchanged blocks without skipping schedule accounting', () => {
     const original = run();
     original.blocks[1].lineup = [...original.lineup];
