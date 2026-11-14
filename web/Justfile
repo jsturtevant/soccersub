@@ -29,4 +29,4 @@ e2e: build
 [working-directory: '..']
 pages-check:
     BASE_PATH=/soccersub/ npm run build
-    E2E_BASE_PATH=/soccersub/ npm run test:e2e -- --grep PWA
+    E2E_BASE_PATH=/touchline/ npm run test:e2e -- --grep PWA
