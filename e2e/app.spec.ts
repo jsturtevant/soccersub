@@ -110,10 +110,14 @@ function heldRun() {
   );
 }
 
-async function seed(page: Page, active: boolean | Run = false) {
+async function seed(
+  page: Page,
+  active: boolean | Run = false,
+  savedTemplate: Template = template,
+) {
   const state = {
     ...emptyState(),
-    teams: [team],
+    teams: [{ ...team, templates: [savedTemplate] }],
     active:
       active === true
         ? createRun(team, template, players, '2026-11-08', 'United')
@@ -478,7 +482,7 @@ for (const mode of ['saved plan', 'game setup']) {
   });
 }
 
-test('selects and explains rotation strategies in saved plans and game setup', async ({
+test('selects rotation settings in the planner and reuses them for game setup', async ({
   page,
 }) => {
   await seed(page);
@@ -512,11 +516,16 @@ test('selects and explains rotation strategies in saved plans and game setup', a
     'small-changes',
   );
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await card.getByRole('button', { name: 'Use for game', exact: true }).click();
-  await expect(page.getByLabel('Rotation strategy')).toHaveValue(
-    'small-changes',
+  const savedPlan = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem('soccersub.v1')!).teams[0].templates[1],
   );
-  await page.getByLabel('Rotation strategy').selectOption('longer-shifts');
+  await card.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await expect(page.getByLabel('Rotation strategy')).toHaveCount(0);
+  await expect(page.getByLabel('Rotation every')).toHaveCount(0);
+  await expect(page.getByLabel('Total game minutes')).toHaveCount(0);
+  await expect(page.locator('#rotation-strategy-info')).toHaveCount(0);
+  await page.getByRole('checkbox', { name: /Alex/ }).uncheck();
   await expect(
     page.getByRole('button', { name: 'Start game', exact: true }),
   ).toBeDisabled();
@@ -525,9 +534,17 @@ test('selects and explains rotation strategies in saved plans and game setup', a
   const state = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('soccersub.v1')!),
   );
-  expect(state.active.strategy).toBe('longer-shifts');
-  expect(state.active.blocks[1].lineup).toEqual(state.active.blocks[0].lineup);
-  expect(state.teams[0].templates[1].strategy).toBe('small-changes');
+  expect(state.active.strategy).toBe(savedPlan.strategy);
+  expect(state.active.duration).toBe(savedPlan.duration);
+  expect(state.active.interval).toBe(savedPlan.interval);
+  expect(state.active.formationId).toBe(savedPlan.formationId);
+  expect(
+    state.active.blocks.some((block: { lineup: string[] }) =>
+      block.lineup.includes('p0'),
+    ),
+  ).toBe(false);
+  expect(state.active.players).toHaveLength(11);
+  expect(state.teams[0].templates[1]).toEqual(savedPlan);
 });
 
 test('builds a manual repeating plan and carries edits only to the next kept block', async ({
@@ -668,15 +685,14 @@ test('selects custom manual times, rejects close additions and runs their actual
   });
   await expect(card).toContainText('Custom substitution times');
   await card.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await expect(firstTimes).toHaveCount(0);
+  await expect(secondTimes).toHaveCount(0);
+  await expect(page.getByLabel('Substitution schedule')).toHaveCount(0);
   await expect(
-    firstTimes.getByRole('button', { name: '0:30', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
-  await expect(
-    firstTimes.getByRole('button', { name: '1:30', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
-  await expect(
-    secondTimes.getByRole('button', { name: '0:45', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
+    page
+      .getByRole('group', { name: 'Lineup blocks', exact: true })
+      .getByRole('button'),
+  ).toHaveCount(5);
   await page.getByRole('button', { name: 'Start game', exact: true }).click();
   let saved = await page.evaluate(
     () => JSON.parse(localStorage.getItem('soccersub.v1')!).active,
@@ -779,22 +795,29 @@ test('keeps time selection compact and preserves choices until explicitly cleare
   ).toBe(true);
 });
 
-test('regenerates manual game schedules for an adjusted squad without adding automatic subs', async ({
+test('regenerates from the saved manual schedule for an adjusted squad', async ({
   page,
 }) => {
-  await seed(page);
+  const savedTemplate: Template = {
+    ...template,
+    strategy: 'manual',
+    interval: 300,
+    customTimes: [0, 30, 60],
+    blocks: [0, 30, 60].map((at) => ({
+      at,
+      lineup: [...template.blocks[0].lineup],
+    })),
+  };
+  await seed(page, false, savedTemplate);
   await page.goto('/');
   await page.getByRole('button', { name: /Riverside U12/ }).click();
   const card = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Saturday 9v9', exact: true }),
   });
   await card.getByRole('button', { name: 'Use for game', exact: true }).click();
-  await page.getByLabel('Rotation strategy').selectOption('manual');
-  await page.getByLabel('Substitution schedule').selectOption('custom');
-  await page
-    .getByRole('group', { name: 'First-half substitution times', exact: true })
-    .getByRole('button', { name: '0:30', exact: true })
-    .click();
+  await expect(page.getByLabel('Rotation strategy')).toHaveCount(0);
+  await expect(page.getByLabel('Substitution schedule')).toHaveCount(0);
+  await expect(page.getByLabel('Total game minutes')).toHaveCount(0);
   await page.getByRole('checkbox', { name: /Alex/ }).uncheck();
   await page.getByRole('button', { name: "Generate today's lineups" }).click();
   await expect(page.locator('.incoming-player')).toHaveCount(0);
@@ -803,6 +826,7 @@ test('regenerates manual game schedules for an adjusted squad without adding aut
     JSON.parse(localStorage.getItem('soccersub.v1')!),
   );
   expect(state.active.strategy).toBe('manual');
+  expect(state.active.customTimes).toEqual(savedTemplate.customTimes);
   expect(state.active.blocks.map((block: { at: number }) => block.at)).toEqual([
     0, 30, 60,
   ]);
@@ -813,7 +837,41 @@ test('regenerates manual game schedules for an adjusted squad without adding aut
     ),
   ).toBe(true);
   expect(state.active.lineup).not.toContain('p0');
-  expect(state.teams[0].templates[0].strategy).toBeUndefined();
+  expect(state.teams[0].templates[0]).toEqual(savedTemplate);
+});
+
+test('only restores saved lineups when their players are available', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'Use for game', exact: true }).click();
+  await page.getByRole('checkbox', { name: /Alex/ }).uncheck();
+  await page.getByRole('button', { name: "Generate today's lineups" }).click();
+  await page.getByRole('checkbox', { name: /Lee/ }).uncheck();
+  await expect(
+    page.getByRole('button', { name: 'Keep template lineups', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Start game', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('checkbox', { name: /Lee/ }).check();
+  await expect(
+    page.getByRole('button', { name: 'Keep template lineups', exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole('checkbox', { name: /Alex/ }).check();
+  await page.getByRole('checkbox', { name: /Lee/ }).uncheck();
+  await page
+    .getByRole('button', { name: 'Keep template lineups', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Start game', exact: true }).click();
+  const state = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('soccersub.v1')!),
+  );
+  expect(state.active.blocks).toEqual(template.blocks);
+  expect(state.active.players).toHaveLength(11);
+  expect(state.teams[0].templates[0]).toEqual(template);
 });
 
 test('warns when short halves cannot give every player a turn', async ({
