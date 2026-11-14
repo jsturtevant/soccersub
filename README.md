@@ -1,6 +1,6 @@
 # Touchline
 
-[Open the app](https://jsturtevant.github.io/soccersub/)
+[Open the app](https://www.jamessturtevant.com/touchline/)
 
 A private soccer game planner for the touchline. Manage teams, build fair rotations,
 and follow the game with a clear field view and substitution alerts.
@@ -112,7 +112,7 @@ Browser tests use Chromium and WebKit to cover mobile and desktop layouts. WebKi
 needs system libraries; `browser-install` may require administrator access.
 
 ```sh
-BASE_PATH=/soccersub/ just build
+BASE_PATH=/touchline/ just build
 ```
 
 The `BASE_PATH` setting supports GitHub Pages project paths. The default `/` is for
@@ -124,6 +124,8 @@ Add to Home Screen. Other supported browsers show an Install app option.
 When the browser offers installation, **Your data → Install for the touchline**
 shows an **Install app** button. Browsers without this prompt still use their own
 installation menus.
+If you installed the app at the old `/soccersub/` URL, export a backup before
+reinstalling from the new URL.
 
 Manual in-app updates are blocked while a game is active. Browsers may activate
 an update after all app tabs close; the saved game remains available on reopening.
