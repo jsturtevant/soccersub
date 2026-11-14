@@ -21,7 +21,7 @@ jobs:
       - run: just web install
       - run: just build
         env:
-          BASE_PATH: /soccersub/
+          BASE_PATH: /touchline/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

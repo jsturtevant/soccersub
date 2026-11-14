@@ -28,5 +28,5 @@ e2e: build
 # Check offline caching and install assets under the Pages project path.
 [working-directory: '..']
 pages-check:
-    BASE_PATH=/soccersub/ npm run build
+    BASE_PATH=/touchline/ npm run build
     E2E_BASE_PATH=/touchline/ npm run test:e2e -- --grep PWA
