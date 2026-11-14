@@ -629,6 +629,18 @@ function Settings({
           for sound alerts.
         </p>
       </div>
+      <div className="card">
+        <h2>About Touchline</h2>
+        <p>
+          <a
+            href="https://github.com/jsturtevant/touchline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View source code on GitHub
+          </a>
+        </p>
+      </div>
       {state.teams.some((team) => team.archived) && (
         <div className="card">
           <h2>Archived teams</h2>
