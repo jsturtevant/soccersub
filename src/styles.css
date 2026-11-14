@@ -800,6 +800,21 @@ details summary {
   font-variant-numeric: tabular-nums;
   color: var(--green);
 }
+.minute-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.half-times {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
 .squad-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

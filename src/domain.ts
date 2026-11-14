@@ -393,10 +393,15 @@ export function plannedSeconds(
   blocks: Block[],
   total: number,
   players: Player[],
+  start = 0,
 ): Record<string, number> {
   const result = Object.fromEntries(players.map((player) => [player.id, 0]));
   blocks.forEach((block, index) => {
-    const length = (blocks[index + 1]?.at ?? total) - block.at;
+    const length = Math.max(
+      0,
+      Math.min(blocks[index + 1]?.at ?? total, total) -
+        Math.max(block.at, start),
+    );
     block.lineup.forEach((player) => {
       result[player] += length;
     });

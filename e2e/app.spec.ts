@@ -1273,6 +1273,9 @@ test('updates estimated playing time from saved next substitutions while actual 
   await page.getByLabel('On player 1', { exact: true }).selectOption('p11');
   await page.getByRole('button', { name: 'Save next substitutions' }).click();
   await expect(lee).toHaveText('0:30');
+  await expect(lee.locator('..').locator('.half-times')).toHaveText(
+    '1st half 0:302nd half 0:00',
+  );
   const actual = page
     .locator('details')
     .filter({ has: page.getByText('Playing time so far', { exact: true }) });
@@ -1287,6 +1290,33 @@ test('updates estimated playing time from saved next substitutions while actual 
   await page.getByRole('button', { name: 'Resume saved game' }).click();
   await estimate.locator('summary').click();
   await expect(lee).toHaveText('0:30');
+});
+
+test('shows per-half planned time alongside the full-game totals', async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Riverside U12/ }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const planned = page.locator('details').filter({
+    has: page.getByText('Planned playing time', { exact: true }),
+  });
+  await planned.locator('summary').click();
+  const blair = planned.locator('.minutes > div').filter({
+    has: page.getByText('Blair', { exact: true }),
+  });
+  await expect(blair.locator('strong')).toHaveText('1:30');
+  await expect(blair.locator('.half-times')).toHaveText(
+    '1st half 0:302nd half 1:00',
+  );
+  const alex = planned.locator('.minutes > div').filter({
+    has: page.getByText('Alex', { exact: true }),
+  });
+  await expect(alex.locator('strong')).toHaveText('1:00');
+  await expect(alex.locator('.half-times')).toHaveText(
+    '1st half 1:002nd half 0:00',
+  );
 });
 
 test('shows the first real substitutions before an unchanged opening block', async ({

@@ -82,6 +82,21 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('clips planned time to either half without counting later blocks negatively', () => {
+    const plan = template();
+    const first = plannedSeconds(plan.blocks, 1200, players);
+    const second = plannedSeconds(plan.blocks, 2400, players, 1200);
+    expect(first['player-0']).toBe(1200);
+    expect(first['player-9']).toBe(300);
+    expect(first['player-10']).toBe(0);
+    expect(second['player-0']).toBe(0);
+    expect(second['player-9']).toBe(1200);
+    expect(second['player-10']).toBe(300);
+    for (const player of players)
+      expect(first[player.id] + second[player.id]).toBe(
+        plannedSeconds(plan.blocks, 2400, players)[player.id],
+      );
+  });
   it('fills manual schedules with independent copies of one lineup and no goalkeeper swap', () => {
     const start = players.slice(0, 9).map((player) => player.id);
     for (const customTimes of [undefined, [0, 300, 1050, 1200, 1620]]) {
@@ -592,6 +607,14 @@ describe('game clock and actual lineups', () => {
     const totals = estimatedSeconds(due);
     expect(totals['player-1']).toBe(2150);
     expect(totals['player-9']).toBe(1450);
+    const first = estimatedSeconds(due, 0, 1200);
+    const second = estimatedSeconds(due, 1200);
+    expect(first['player-1']).toBe(950);
+    expect(first['player-9']).toBe(250);
+    expect(second['player-1']).toBe(1200);
+    expect(second['player-9']).toBe(1200);
+    for (const player of players)
+      expect(first[player.id] + second[player.id]).toBe(totals[player.id]);
     expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
       2400 * 9,
     );
@@ -604,6 +627,8 @@ describe('game clock and actual lineups', () => {
     const totals = estimatedSeconds(corrected);
     expect(totals['player-10']).toBe(550);
     expect(totals['player-2']).toBe(1850);
+    expect(estimatedSeconds(corrected, 0, 1200)['player-10']).toBe(250);
+    expect(estimatedSeconds(corrected, 1200)['player-10']).toBe(300);
     expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
       2400 * 9,
     );

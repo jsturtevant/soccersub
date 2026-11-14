@@ -26,16 +26,31 @@ import {
 export function Minutes({
   players,
   totals,
+  halves,
 }: {
   players: Player[];
   totals: Record<string, number>;
+  halves?: {
+    first: Record<string, number>;
+    second: Record<string, number>;
+  };
 }) {
   return (
     <div className="minutes">
       {players.map((player) => (
         <div key={player.id}>
           <span>{player.name}</span>
-          <strong>{formatTime(totals[player.id] ?? 0)}</strong>
+          <span className="minute-values">
+            <strong>{formatTime(totals[player.id] ?? 0)}</strong>
+            {halves && (
+              <span className="half-times">
+                <span>1st half {formatTime(halves.first[player.id] ?? 0)}</span>
+                <span>
+                  2nd half {formatTime(halves.second[player.id] ?? 0)}
+                </span>
+              </span>
+            )}
+          </span>
         </div>
       ))}
     </div>
@@ -171,6 +186,10 @@ export function LineupEditor({
         <Minutes
           players={players}
           totals={plannedSeconds(plan.blocks, plan.duration, players)}
+          halves={{
+            first: plannedSeconds(plan.blocks, half, players),
+            second: plannedSeconds(plan.blocks, plan.duration, players, half),
+          }}
         />
       </details>
     </>

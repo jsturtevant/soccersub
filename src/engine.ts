@@ -2,6 +2,7 @@ import {
   uid,
   editBlock,
   keepGoalkeeper,
+  plannedSeconds,
   validateLineup,
   validatePlan,
   type Player,
@@ -273,28 +274,33 @@ export function toggleClock(run: Run, now: number): Run {
   return next;
 }
 
-export function actualSeconds(run: Run): Record<string, number> {
-  const result = Object.fromEntries(
-    run.players.map((player) => [player.id, 0]),
+export function actualSeconds(
+  run: Run,
+  start = 0,
+  end = run.clock.elapsed,
+): Record<string, number> {
+  return plannedSeconds(
+    run.events,
+    Math.min(end, run.clock.elapsed),
+    run.players,
+    start,
   );
-  run.events.forEach((event, index) => {
-    const length = Math.max(
-      0,
-      (run.events[index + 1]?.at ?? run.clock.elapsed) - event.at,
-    );
-    event.lineup.forEach((id) => {
-      result[id] += length;
-    });
-  });
-  return result;
 }
 
-export function estimatedSeconds(run: Run): Record<string, number> {
-  const result = actualSeconds(run);
+export function estimatedSeconds(
+  run: Run,
+  start = 0,
+  end = run.duration,
+): Record<string, number> {
+  const result = actualSeconds(run, start, end);
   let at = run.clock.elapsed;
   let lineup = run.lineup;
   const add = (length: number) => {
-    for (const id of lineup) result[id] += length;
+    const overlap = Math.max(
+      0,
+      Math.min(at + length, end) - Math.max(at, start),
+    );
+    for (const id of lineup) result[id] += overlap;
   };
   const first = nextBlockIndex(run);
   if (first >= 0) {

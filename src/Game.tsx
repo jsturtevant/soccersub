@@ -774,7 +774,14 @@ export function Game({
           Expected totals at full time, using actual play so far and the
           remaining planned lineups. Pending changes are assumed to happen now.
         </p>
-        <Minutes players={run.players} totals={estimatedSeconds(run)} />
+        <Minutes
+          players={run.players}
+          totals={estimatedSeconds(run)}
+          halves={{
+            first: estimatedSeconds(run, 0, half),
+            second: estimatedSeconds(run, half),
+          }}
+        />
       </details>
       {!recovered && (
         <button className="text-button danger" onClick={discard}>
