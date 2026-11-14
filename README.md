@@ -59,8 +59,10 @@ Game setup uses the saved formation, game length, strategy and schedule.
 Change these settings in the plan editor, not in game setup.
 
 In the block editor, green **Just on** labels mark arrivals from the previous
-block. Yellow **Next** labels show entrants in the next block. These markers
-update as you edit a saved plan or prepare a game.
+block. Yellow **Next** labels show the next player in each changed position,
+including players who move on the field. OFF-to-ON rows still show bench
+substitutions only. These markers update as you edit a saved plan or prepare
+a game.
 
 During a game, use **Edit next substitutions** to adjust the next lineup or
 keep a player who was due to come off. Change either name directly in its OFF-to-ON

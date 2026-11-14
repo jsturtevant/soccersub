@@ -97,7 +97,7 @@ export function LineupEditor({
       </p>
       <p className="hint">
         Green marks players who came on from the previous block. Yellow shows
-        who comes on in the next block.
+        the next player in each changed position.
       </p>
       {showStrategyInfo && (
         <p className="hint">

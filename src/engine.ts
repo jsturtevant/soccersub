@@ -63,7 +63,7 @@ export function nextSubstitutionIndex(run: Run): number {
     const block = run.blocks[index];
     if (
       block.at === run.duration / 2 ||
-      changes(run.lineup, block.lineup).on.length > 0
+      block.lineup.some((id, slot) => id !== run.lineup[slot])
     )
       return index;
   }
