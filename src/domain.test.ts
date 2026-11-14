@@ -8,6 +8,7 @@ import {
   parseState,
   parseCustomTimes,
   plannedSeconds,
+  planningProgress,
   rotationWarnings,
   slotRoles,
   validatePlan,
@@ -82,6 +83,28 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('counts progress through the block start and resets consecutive bench waits on entry', () => {
+    const lineup = template().blocks[0].lineup;
+    const blocks = boundaries(2400, 300).map((at) => ({
+      at,
+      lineup:
+        at < 1500 ? [...lineup] : [lineup[0], 'player-9', ...lineup.slice(2)],
+    }));
+    expect(planningProgress(blocks, 0, players).played['player-0']).toBe(0);
+    expect(planningProgress(blocks, 3, players).benched['player-9']).toBe(900);
+    const halftime = planningProgress(blocks, 4, players);
+    expect(halftime.played['player-0']).toBe(1200);
+    expect(halftime.played['player-9']).toBe(0);
+    expect(halftime.benched['player-9']).toBe(1200);
+    const entry = planningProgress(blocks, 5, players);
+    expect(entry.played['player-9']).toBe(0);
+    expect(entry.benched['player-9']).toBe(0);
+    expect(entry.benched['player-1']).toBe(0);
+    const later = planningProgress(blocks, 6, players);
+    expect(later.played['player-9']).toBe(300);
+    expect(later.benched['player-1']).toBe(300);
+    expect(later.benched['player-10']).toBe(1800);
+  });
   it('clips planned time to either half without counting later blocks negatively', () => {
     const plan = template();
     const first = plannedSeconds(plan.blocks, 1200, players);

@@ -766,6 +766,59 @@ legend {
   font-size: 0.65rem;
   font-weight: 800;
 }
+.incoming-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.player-time {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.pitch .player-time {
+  color: white;
+  font-size: clamp(0.6rem, 2.1vw, 0.7rem);
+}
+.pitch:has(.player-time) {
+  aspect-ratio: auto;
+  min-height: min(760px, 145vw);
+  gap: 20px;
+}
+.bench-alert {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: #c52e2e;
+}
+.bench-players {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.bench-players li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.87rem;
+}
 .bench {
   text-align: center;
   margin: 20px 0;

@@ -6,6 +6,7 @@ import {
   formatTime,
   generateBlocks,
   plannedSeconds,
+  planningProgress,
   rotationWarnings,
   uid,
   validatePlan,
@@ -13,7 +14,7 @@ import {
   type Template,
   type Team,
 } from './domain';
-import { Field, swapPlayer } from './Field';
+import { Field, PlayerTime, swapPlayer } from './Field';
 import { changes } from './engine';
 import { rotationStrategies } from './rotations';
 import {
@@ -78,6 +79,8 @@ export function LineupEditor({
   ];
   const noKeeperSwap = halfKeepers[0] === halfKeepers[1];
   const warnings = rotationWarnings(plan, players);
+  const progress = planningProgress(plan.blocks, index, players);
+  const bench = players.filter((player) => !block.lineup.includes(player.id));
   const manual = plan.strategy === 'manual';
   return (
     <>
@@ -104,6 +107,10 @@ export function LineupEditor({
           {rotationStrategies[plan.strategy ?? 'fair'].description}
         </p>
       )}
+      <p className="hint">
+        Played time runs up to this block's start. A red dot marks more than 15
+        match minutes in a row on the bench.
+      </p>
       {warnings.length > 0 && (
         <div className="warning" role="status">
           <strong>Rotation goals need attention</strong>
@@ -140,6 +147,7 @@ export function LineupEditor({
             ? changes(plan.blocks[index - 1].lineup, block.lineup).on
             : []
         }
+        progress={progress}
         onChange={(slot, player) =>
           onChange(
             editBlock(
@@ -168,12 +176,18 @@ export function LineupEditor({
       )}
       <div className="bench">
         <span className="eyebrow">On the bench</span>
-        <p>
-          {players
-            .filter((player) => !block.lineup.includes(player.id))
-            .map((player) => player.name)
-            .join(' · ') || 'Everyone is on the field'}
-        </p>
+        {bench.length ? (
+          <ul className="bench-players" aria-label="Bench players">
+            {bench.map((player) => (
+              <li key={player.id}>
+                <span>{player.name}</span>
+                <PlayerTime player={player.id} progress={progress} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>Everyone is on the field</p>
+        )}
       </div>
       {noKeeperSwap && (
         <p className="hint warning">

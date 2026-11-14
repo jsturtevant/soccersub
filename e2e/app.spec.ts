@@ -1340,6 +1340,98 @@ test('updates estimated playing time from saved next substitutions while actual 
   await expect(lee).toHaveText('0:30');
 });
 
+for (const mode of ['saved plan', 'game setup']) {
+  test(`shows block progress and long bench waits without replacing total estimates in ${mode}`, async ({
+    page,
+  }) => {
+    const lineup = template.blocks[0].lineup;
+    const plan: Template = {
+      ...template,
+      strategy: 'manual',
+      duration: 2400,
+      interval: 300,
+      blocks: Array.from({ length: 8 }, (_, index) => ({
+        at: index * 300,
+        lineup: index < 5 ? [...lineup] : [lineup[0], 'p9', ...lineup.slice(2)],
+      })),
+    };
+    await seed(page, false, plan);
+    await page.goto('/');
+    await page.getByRole('button', { name: /Riverside U12/ }).click();
+    await page
+      .getByRole('button', {
+        name: mode === 'saved plan' ? 'Edit' : 'Use for game',
+        exact: true,
+      })
+      .click();
+    const field = page.getByRole('group', {
+      name: 'Soccer field',
+      exact: true,
+    });
+    const bench = page.getByRole('list', {
+      name: 'Bench players',
+      exact: true,
+    });
+    const jules = bench.getByRole('listitem').filter({
+      has: page.getByText('Jules', { exact: true }),
+    });
+    const slot = field.getByLabel('Player in field slot 2', { exact: true });
+    const slotRow = field.locator('.pitch-player').filter({
+      has: page.getByLabel('Player in field slot 2', { exact: true }),
+    });
+    await expect(slotRow.locator('.player-time').first()).toHaveText(
+      'Played 0:00',
+    );
+    await expect(bench.locator('.bench-alert')).toHaveCount(0);
+    await page
+      .getByRole('button', { name: '1st · 15:00', exact: true })
+      .click();
+    await expect(jules.locator('.bench-alert')).toHaveCount(0);
+    await page.getByRole('button', { name: /2nd · 0:00/ }).click();
+    await expect(slotRow.locator('.player-time').first()).toHaveText(
+      'Played 20:00',
+    );
+    await expect(jules.locator('.player-time')).toHaveText('Played 0:00');
+    await expect(
+      jules.getByRole('img', { name: 'On bench for 20:00', exact: true }),
+    ).toBeVisible();
+    const upcoming = field.locator('.incoming-preview');
+    await expect(upcoming.locator('.incoming-player')).toHaveText('Next Jules');
+    await expect(upcoming.locator('.player-time')).toHaveText('Played 0:00');
+    await expect(
+      upcoming.getByRole('img', { name: 'On bench for 20:00', exact: true }),
+    ).toBeVisible();
+    const totals = page.locator('details').filter({
+      has: page.getByText('Planned playing time', { exact: true }),
+    });
+    await totals.locator('summary').click();
+    const total = totals.locator('.minutes > div').filter({
+      has: page.getByText('Jules', { exact: true }),
+    });
+    await expect(total.locator('strong')).toHaveText('15:00');
+    await page.getByRole('button', { name: '2nd · 5:00', exact: true }).click();
+    await expect(slot).toHaveValue('p9');
+    await expect(slotRow.locator('.player-time')).toHaveText('Played 0:00');
+    await expect(slotRow.locator('.bench-alert')).toHaveCount(0);
+    await page
+      .getByRole('button', { name: '2nd · 10:00', exact: true })
+      .click();
+    await expect(slotRow.locator('.player-time')).toHaveText('Played 5:00');
+    await expect(total.locator('strong')).toHaveText('15:00');
+    await page.getByRole('button', { name: /2nd · 0:00/ }).click();
+    await slot.selectOption('p9');
+    await expect(slotRow.locator('.bench-alert')).toHaveCount(0);
+    await expect(total.locator('strong')).toHaveText('20:00');
+    await page.getByRole('button', { name: '2nd · 5:00', exact: true }).click();
+    await expect(slotRow.locator('.player-time')).toHaveText('Played 5:00');
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
 test('shows per-half planned time alongside the full-game totals', async ({
   page,
 }) => {

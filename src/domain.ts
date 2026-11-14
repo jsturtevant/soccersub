@@ -446,6 +446,31 @@ export function rotationWarnings(
   return warnings;
 }
 
+export function planningProgress(
+  blocks: Block[],
+  index: number,
+  players: Player[],
+) {
+  const selected = blocks[index];
+  if (!selected) throw new Error('Choose a lineup block.');
+  const benched = Object.fromEntries(players.map((player) => [player.id, 0]));
+  for (let i = 0; i < index; i++) {
+    const block = blocks[i];
+    const length = blocks[i + 1].at - block.at;
+    for (const player of players)
+      benched[player.id] = block.lineup.includes(player.id)
+        ? 0
+        : benched[player.id] + length;
+  }
+  for (const id of selected.lineup) benched[id] = 0;
+  return {
+    played: plannedSeconds(blocks, selected.at, players),
+    benched,
+  };
+}
+
+export type PlanningProgress = ReturnType<typeof planningProgress>;
+
 export function generateBlocks(
   players: Player[],
   formationId: string,
