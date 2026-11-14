@@ -393,10 +393,15 @@ export function plannedSeconds(
   blocks: Block[],
   total: number,
   players: Player[],
+  start = 0,
 ): Record<string, number> {
   const result = Object.fromEntries(players.map((player) => [player.id, 0]));
   blocks.forEach((block, index) => {
-    const length = (blocks[index + 1]?.at ?? total) - block.at;
+    const length = Math.max(
+      0,
+      Math.min(blocks[index + 1]?.at ?? total, total) -
+        Math.max(block.at, start),
+    );
     block.lineup.forEach((player) => {
       result[player] += length;
     });
@@ -440,6 +445,31 @@ export function rotationWarnings(
     );
   return warnings;
 }
+
+export function planningProgress(
+  blocks: Block[],
+  index: number,
+  players: Player[],
+) {
+  const selected = blocks[index];
+  if (!selected) throw new Error('Choose a lineup block.');
+  const benched = Object.fromEntries(players.map((player) => [player.id, 0]));
+  for (let i = 0; i < index; i++) {
+    const block = blocks[i];
+    const length = blocks[i + 1].at - block.at;
+    for (const player of players)
+      benched[player.id] = block.lineup.includes(player.id)
+        ? 0
+        : benched[player.id] + length;
+  }
+  for (const id of selected.lineup) benched[id] = 0;
+  return {
+    played: plannedSeconds(blocks, selected.at, players),
+    benched,
+  };
+}
+
+export type PlanningProgress = ReturnType<typeof planningProgress>;
 
 export function generateBlocks(
   players: Player[],

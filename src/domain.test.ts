@@ -8,6 +8,7 @@ import {
   parseState,
   parseCustomTimes,
   plannedSeconds,
+  planningProgress,
   rotationWarnings,
   slotRoles,
   validatePlan,
@@ -82,6 +83,43 @@ const run = () =>
   );
 
 describe('lineup planning', () => {
+  it('counts progress through the block start and resets consecutive bench waits on entry', () => {
+    const lineup = template().blocks[0].lineup;
+    const blocks = boundaries(2400, 300).map((at) => ({
+      at,
+      lineup:
+        at < 1500 ? [...lineup] : [lineup[0], 'player-9', ...lineup.slice(2)],
+    }));
+    expect(planningProgress(blocks, 0, players).played['player-0']).toBe(0);
+    expect(planningProgress(blocks, 3, players).benched['player-9']).toBe(900);
+    const halftime = planningProgress(blocks, 4, players);
+    expect(halftime.played['player-0']).toBe(1200);
+    expect(halftime.played['player-9']).toBe(0);
+    expect(halftime.benched['player-9']).toBe(1200);
+    const entry = planningProgress(blocks, 5, players);
+    expect(entry.played['player-9']).toBe(0);
+    expect(entry.benched['player-9']).toBe(0);
+    expect(entry.benched['player-1']).toBe(0);
+    const later = planningProgress(blocks, 6, players);
+    expect(later.played['player-9']).toBe(300);
+    expect(later.benched['player-1']).toBe(300);
+    expect(later.benched['player-10']).toBe(1800);
+  });
+  it('clips planned time to either half without counting later blocks negatively', () => {
+    const plan = template();
+    const first = plannedSeconds(plan.blocks, 1200, players);
+    const second = plannedSeconds(plan.blocks, 2400, players, 1200);
+    expect(first['player-0']).toBe(1200);
+    expect(first['player-9']).toBe(300);
+    expect(first['player-10']).toBe(0);
+    expect(second['player-0']).toBe(0);
+    expect(second['player-9']).toBe(1200);
+    expect(second['player-10']).toBe(300);
+    for (const player of players)
+      expect(first[player.id] + second[player.id]).toBe(
+        plannedSeconds(plan.blocks, 2400, players)[player.id],
+      );
+  });
   it('fills manual schedules with independent copies of one lineup and no goalkeeper swap', () => {
     const start = players.slice(0, 9).map((player) => player.id);
     for (const customTimes of [undefined, [0, 300, 1050, 1200, 1620]]) {
@@ -573,6 +611,14 @@ describe('game clock and actual lineups', () => {
       'c',
     ]);
   });
+  it('previews a position-only change before a later bench substitution', () => {
+    const original = run();
+    const moved = [...original.lineup];
+    [moved[1], moved[2]] = [moved[2], moved[1]];
+    original.blocks[1].lineup = moved;
+    expect(nextSubstitutionIndex(original)).toBe(1);
+    expect(substitutions(original.lineup, moved)).toEqual([]);
+  });
   it('allows editing the next visible substitution past unchanged blocks without skipping schedule accounting', () => {
     const original = run();
     original.blocks[1].lineup = [...original.lineup];
@@ -592,6 +638,14 @@ describe('game clock and actual lineups', () => {
     const totals = estimatedSeconds(due);
     expect(totals['player-1']).toBe(2150);
     expect(totals['player-9']).toBe(1450);
+    const first = estimatedSeconds(due, 0, 1200);
+    const second = estimatedSeconds(due, 1200);
+    expect(first['player-1']).toBe(950);
+    expect(first['player-9']).toBe(250);
+    expect(second['player-1']).toBe(1200);
+    expect(second['player-9']).toBe(1200);
+    for (const player of players)
+      expect(first[player.id] + second[player.id]).toBe(totals[player.id]);
     expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
       2400 * 9,
     );
@@ -604,6 +658,8 @@ describe('game clock and actual lineups', () => {
     const totals = estimatedSeconds(corrected);
     expect(totals['player-10']).toBe(550);
     expect(totals['player-2']).toBe(1850);
+    expect(estimatedSeconds(corrected, 0, 1200)['player-10']).toBe(250);
+    expect(estimatedSeconds(corrected, 1200)['player-10']).toBe(300);
     expect(Object.values(totals).reduce((sum, value) => sum + value, 0)).toBe(
       2400 * 9,
     );

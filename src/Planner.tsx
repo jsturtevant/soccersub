@@ -6,6 +6,7 @@ import {
   formatTime,
   generateBlocks,
   plannedSeconds,
+  planningProgress,
   rotationWarnings,
   uid,
   validatePlan,
@@ -13,7 +14,7 @@ import {
   type Template,
   type Team,
 } from './domain';
-import { Field, swapPlayer } from './Field';
+import { Field, PlayerTime, swapPlayer } from './Field';
 import { changes } from './engine';
 import { rotationStrategies } from './rotations';
 import {
@@ -26,16 +27,31 @@ import {
 export function Minutes({
   players,
   totals,
+  halves,
 }: {
   players: Player[];
   totals: Record<string, number>;
+  halves?: {
+    first: Record<string, number>;
+    second: Record<string, number>;
+  };
 }) {
   return (
     <div className="minutes">
       {players.map((player) => (
         <div key={player.id}>
           <span>{player.name}</span>
-          <strong>{formatTime(totals[player.id] ?? 0)}</strong>
+          <span className="minute-values">
+            <strong>{formatTime(totals[player.id] ?? 0)}</strong>
+            {halves && (
+              <span className="half-times">
+                <span>1st half {formatTime(halves.first[player.id] ?? 0)}</span>
+                <span>
+                  2nd half {formatTime(halves.second[player.id] ?? 0)}
+                </span>
+              </span>
+            )}
+          </span>
         </div>
       ))}
     </div>
@@ -63,6 +79,8 @@ export function LineupEditor({
   ];
   const noKeeperSwap = halfKeepers[0] === halfKeepers[1];
   const warnings = rotationWarnings(plan, players);
+  const progress = planningProgress(plan.blocks, index, players);
+  const bench = players.filter((player) => !block.lineup.includes(player.id));
   const manual = plan.strategy === 'manual';
   return (
     <>
@@ -82,13 +100,17 @@ export function LineupEditor({
       </p>
       <p className="hint">
         Green marks players who came on from the previous block. Yellow shows
-        who comes on in the next block.
+        the next player in each changed position.
       </p>
       {showStrategyInfo && (
         <p className="hint">
           {rotationStrategies[plan.strategy ?? 'fair'].description}
         </p>
       )}
+      <p className="hint">
+        Played time runs up to this block's start. A red dot marks more than 15
+        match minutes in a row on the bench.
+      </p>
       {warnings.length > 0 && (
         <div className="warning" role="status">
           <strong>Rotation goals need attention</strong>
@@ -125,6 +147,7 @@ export function LineupEditor({
             ? changes(plan.blocks[index - 1].lineup, block.lineup).on
             : []
         }
+        progress={progress}
         onChange={(slot, player) =>
           onChange(
             editBlock(
@@ -153,12 +176,18 @@ export function LineupEditor({
       )}
       <div className="bench">
         <span className="eyebrow">On the bench</span>
-        <p>
-          {players
-            .filter((player) => !block.lineup.includes(player.id))
-            .map((player) => player.name)
-            .join(' · ') || 'Everyone is on the field'}
-        </p>
+        {bench.length ? (
+          <ul className="bench-players" aria-label="Bench players">
+            {bench.map((player) => (
+              <li key={player.id}>
+                <span>{player.name}</span>
+                <PlayerTime player={player.id} progress={progress} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>Everyone is on the field</p>
+        )}
       </div>
       {noKeeperSwap && (
         <p className="hint warning">
@@ -171,6 +200,10 @@ export function LineupEditor({
         <Minutes
           players={players}
           totals={plannedSeconds(plan.blocks, plan.duration, players)}
+          halves={{
+            first: plannedSeconds(plan.blocks, half, players),
+            second: plannedSeconds(plan.blocks, plan.duration, players, half),
+          }}
         />
       </details>
     </>

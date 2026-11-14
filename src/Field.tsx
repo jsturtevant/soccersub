@@ -1,5 +1,9 @@
-import { formation, type Player } from './domain';
-import { substitutions } from './engine';
+import {
+  formation,
+  formatTime,
+  type PlanningProgress,
+  type Player,
+} from './domain';
 
 type Props = {
   formationId: string;
@@ -7,9 +11,34 @@ type Props = {
   players: Player[];
   nextLineup?: string[];
   recentlyOn?: string[];
+  progress?: PlanningProgress;
   label?: string;
   onChange?: (slot: number, player: string) => void;
 };
+
+export function PlayerTime({
+  player,
+  progress,
+}: {
+  player: string;
+  progress: PlanningProgress;
+}) {
+  const benched = progress.benched[player];
+  const warning = `On bench for ${formatTime(benched)}`;
+  return (
+    <span className="player-time">
+      Played {formatTime(progress.played[player])}
+      {benched > 15 * 60 && (
+        <span
+          className="bench-alert"
+          role="img"
+          aria-label={warning}
+          title={warning}
+        />
+      )}
+    </span>
+  );
+}
 
 export function Field({
   formationId,
@@ -17,11 +46,11 @@ export function Field({
   players,
   nextLineup,
   recentlyOn = [],
+  progress,
   label = 'Soccer field',
   onChange,
 }: Props) {
   const { rows } = formation(formationId);
-  const upcoming = nextLineup ? substitutions(lineup, nextLineup) : [];
   let index = 1;
   const fieldRows = rows
     .map((count) => {
@@ -39,10 +68,11 @@ export function Field({
         <div className="pitch-row" key={row}>
           {slots.map((slot) => {
             const player = players.find((item) => item.id === lineup[slot]);
-            const incomingId = upcoming.find(
-              (change) => change.off === lineup[slot],
-            )?.on;
-            const incoming = players.find((item) => item.id === incomingId);
+            const incomingId = nextLineup?.[slot];
+            const incoming =
+              incomingId !== lineup[slot]
+                ? players.find((item) => item.id === incomingId)
+                : undefined;
             const justOn = recentlyOn.includes(lineup[slot]);
             return (
               <div className="pitch-player" key={slot}>
@@ -75,9 +105,18 @@ export function Field({
                   )}
                   {justOn && <span className="recent-label">Just on</span>}
                 </span>
+                {progress && player && (
+                  <PlayerTime player={player.id} progress={progress} />
+                )}
                 {incoming && (
-                  <span className="incoming-player">
-                    <span className="incoming-label">Next</span> {incoming.name}
+                  <span className="incoming-preview">
+                    <span className="incoming-player">
+                      <span className="incoming-label">Next</span>{' '}
+                      {incoming.name}
+                    </span>
+                    {progress && (
+                      <PlayerTime player={incoming.id} progress={progress} />
+                    )}
                   </span>
                 )}
               </div>
